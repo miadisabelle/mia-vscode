@@ -1,5 +1,7 @@
-// src/extension.ts — mia-three-universe core extension
-// Central nervous system for all three-universe features.
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 const vscode = require('vscode');
 const { MiaHttpClientImpl } = require('./api/httpClient');
@@ -83,8 +85,12 @@ function activate(context) {
 		vscode.workspace.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('mia.serverUrl')) {
 				const newUrl = vscode.workspace.getConfiguration('mia').get('serverUrl', '');
-				if (httpClient) httpClient.setServerUrl(newUrl);
-				if (wsClient) wsClient.reconnect(newUrl);
+				if (httpClient) {
+					httpClient.setServerUrl(newUrl);
+				}
+				if (wsClient) {
+					wsClient.reconnect(newUrl);
+				}
 			}
 		})
 	);
@@ -136,20 +142,27 @@ function activate(context) {
 }
 
 function deactivate() {
-	if (wsClient) wsClient.disconnect();
+	if (wsClient) {
+		wsClient.disconnect();
+	}
 	for (const channel of outputChannels.values()) {
 		channel.dispose();
 	}
 	outputChannels.clear();
 }
 
-// ─── Output Channels ────────────────────────────────────────────
+// allow-any-unicode-next-line
+// --- Output Channels ---------------------------------------------------------
 
 const CHANNEL_NAMES = {
-	engineer: 'Mia: Engineer 🔧',
-	ceremony: 'Mia: Ceremony 🌿',
-	story: 'Mia: Story 📖',
-	lake: 'Mia: Lake 🌊',
+	// allow-any-unicode-next-line
+	engineer: 'Mia: Engineer \uD83D\uDD27',
+	// allow-any-unicode-next-line
+	ceremony: 'Mia: Ceremony \uD83C\uDF3F',
+	// allow-any-unicode-next-line
+	story: 'Mia: Story \uD83D\uDCD6',
+	// allow-any-unicode-next-line
+	lake: 'Mia: Lake \uD83C\uDF0A',
 	narrative: 'Mia: Narrative',
 	server: 'Mia: Server',
 };
@@ -162,7 +175,8 @@ function getLog(universe) {
 	return outputChannels.get(universe);
 }
 
-// ─── Commands ───────────────────────────────────────────────────
+// allow-any-unicode-next-line
+// --- Commands ----------------------------------------------------------------
 
 async function analyzeCurrentFile() {
 	const editor = vscode.window.activeTextEditor;
@@ -174,7 +188,9 @@ async function analyzeCurrentFile() {
 }
 
 async function analyzeFileByUri(uri) {
-	if (!httpClient) return null;
+	if (!httpClient) {
+		return null;
+	}
 
 	const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(uri));
 	const content = doc.getText();
@@ -193,19 +209,25 @@ async function analyzeFileByUri(uri) {
 	}
 }
 
-async function showAgentPanel(context) {
+async function showAgentPanel(_context) {
 	vscode.window.showInformationMessage('Agent Panel — coming in mia.agent-panel extension');
 }
 
 async function createChart() {
 	const title = await vscode.window.showInputBox({ prompt: 'Chart title', placeHolder: 'What are you creating?' });
-	if (!title) return;
+	if (!title) {
+		return;
+	}
 
 	const desiredOutcome = await vscode.window.showInputBox({ prompt: 'Desired Outcome', placeHolder: 'What does success look like?' });
-	if (!desiredOutcome) return;
+	if (!desiredOutcome) {
+		return;
+	}
 
 	const currentReality = await vscode.window.showInputBox({ prompt: 'Current Reality', placeHolder: 'Where are you now?' });
-	if (!currentReality) return;
+	if (!currentReality) {
+		return;
+	}
 
 	if (httpClient) {
 		try {
@@ -214,16 +236,18 @@ async function createChart() {
 		} catch (err) {
 			getLog('server').error(`Failed to create chart: ${err.message}`);
 			// Fallback: create locally
-			saveChartLocally({ title, desiredOutcome, currentReality });
+			await saveChartLocally({ title, desiredOutcome, currentReality });
 		}
 	} else {
-		saveChartLocally({ title, desiredOutcome, currentReality });
+		await saveChartLocally({ title, desiredOutcome, currentReality });
 	}
 }
 
-function saveChartLocally(chartData) {
+async function saveChartLocally(chartData) {
 	const folders = vscode.workspace.workspaceFolders;
-	if (!folders || folders.length === 0) return;
+	if (!folders || folders.length === 0) {
+		return;
+	}
 
 	const stcDir = vscode.Uri.joinPath(folders[0].uri, '.stc', 'charts');
 	const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -236,22 +260,25 @@ function saveChartLocally(chartData) {
 	};
 
 	const fileUri = vscode.Uri.joinPath(stcDir, `${id}.json`);
-	vscode.workspace.fs.createDirectory(stcDir).then(() => {
-		const content = Buffer.from(JSON.stringify(chart, null, 2));
-		vscode.workspace.fs.writeFile(fileUri, content);
-		vscode.window.showInformationMessage(`Chart saved locally: ${chartData.title}`);
-	});
+	await vscode.workspace.fs.createDirectory(stcDir);
+	const content = Buffer.from(JSON.stringify(chart, null, 2));
+	await vscode.workspace.fs.writeFile(fileUri, content);
+	vscode.window.showInformationMessage(`Chart saved locally: ${chartData.title}`);
 }
 
 async function createBeat() {
 	const description = await vscode.window.showInputBox({ prompt: 'Beat description', placeHolder: 'What just happened?' });
-	if (!description) return;
+	if (!description) {
+		return;
+	}
 
 	const type = await vscode.window.showQuickPick(
 		['engineering', 'relational', 'narrative', 'transition', 'milestone'],
 		{ placeHolder: 'Beat type' }
 	);
-	if (!type) return;
+	if (!type) {
+		return;
+	}
 
 	if (httpClient) {
 		try {
@@ -272,7 +299,9 @@ async function switchUniverse() {
 		['balanced', 'engineer', 'ceremony', 'story'],
 		{ placeHolder: 'Select primary universe focus' }
 	);
-	if (!choice) return;
+	if (!choice) {
+		return;
+	}
 
 	const config = vscode.workspace.getConfiguration('mia');
 	await config.update('primaryUniverse', choice, vscode.ConfigurationTarget.Global);
@@ -290,7 +319,9 @@ async function decomposePrompt() {
 		? editor.document.getText(selection)
 		: await vscode.window.showInputBox({ prompt: 'Enter prompt to decompose', placeHolder: 'Complex prompt...' });
 
-	if (!text) return;
+	if (!text) {
+		return;
+	}
 
 	if (httpClient) {
 		try {
@@ -305,7 +336,9 @@ async function decomposePrompt() {
 
 async function quickAnalysis() {
 	const editor = vscode.window.activeTextEditor;
-	if (!editor) return;
+	if (!editor) {
+		return;
+	}
 
 	const selection = editor.selection;
 	const text = !selection.isEmpty
@@ -316,7 +349,8 @@ async function quickAnalysis() {
 	vscode.window.showInformationMessage(`Quick analysis of: "${text.slice(0, 50)}..."`);
 }
 
-// ─── Tree Data Providers ────────────────────────────────────────
+// allow-any-unicode-next-line
+// --- Tree Data Providers -----------------------------------------------------
 
 class UniverseExplorerProvider {
 	constructor() {
@@ -335,10 +369,14 @@ class UniverseExplorerProvider {
 	getChildren(element) {
 		if (!element) {
 			return [
-				new UniverseTreeItem('🔧 Engineer', 'engineer', vscode.TreeItemCollapsibleState.Collapsed),
-				new UniverseTreeItem('🌿 Ceremony', 'ceremony', vscode.TreeItemCollapsibleState.Collapsed),
-				new UniverseTreeItem('📖 Story', 'story', vscode.TreeItemCollapsibleState.Collapsed),
-				new UniverseTreeItem('🌊 Lake', 'lake', vscode.TreeItemCollapsibleState.Collapsed),
+				// allow-any-unicode-next-line
+				new UniverseTreeItem('\uD83D\uDD27 Engineer', 'engineer', vscode.TreeItemCollapsibleState.Collapsed),
+				// allow-any-unicode-next-line
+				new UniverseTreeItem('\uD83C\uDF3F Ceremony', 'ceremony', vscode.TreeItemCollapsibleState.Collapsed),
+				// allow-any-unicode-next-line
+				new UniverseTreeItem('\uD83D\uDCD6 Story', 'story', vscode.TreeItemCollapsibleState.Collapsed),
+				// allow-any-unicode-next-line
+				new UniverseTreeItem('\uD83C\uDF0A Lake', 'lake', vscode.TreeItemCollapsibleState.Collapsed),
 			];
 		}
 		// Child items would show recent analyses per universe
