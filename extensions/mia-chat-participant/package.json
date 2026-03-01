@@ -1,5 +1,5 @@
 {
-	"name": "mia-chat-participant",
+	"name": "chat-participant",
 	"displayName": "Mia Chat Participant",
 	"description": "VS Code Chat API three-universe participant for Mia Code",
 	"version": "0.1.0",

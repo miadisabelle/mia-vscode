@@ -1,5 +1,5 @@
 {
-	"name": "mia-agent-panel",
+	"name": "agent-panel",
 	"displayName": "Mia Agent Panel",
 	"description": "Three-universe agentic chat webview panel for Mia Code",
 	"version": "0.1.0",
