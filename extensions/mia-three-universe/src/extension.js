@@ -149,6 +149,7 @@ const CHANNEL_NAMES = {
 	engineer: 'Mia: Engineer 🔧',
 	ceremony: 'Mia: Ceremony 🌿',
 	story: 'Mia: Story 📖',
+	lake: 'Mia: Lake 🌊',
 	narrative: 'Mia: Narrative',
 	server: 'Mia: Server',
 };
@@ -337,6 +338,7 @@ class UniverseExplorerProvider {
 				new UniverseTreeItem('🔧 Engineer', 'engineer', vscode.TreeItemCollapsibleState.Collapsed),
 				new UniverseTreeItem('🌿 Ceremony', 'ceremony', vscode.TreeItemCollapsibleState.Collapsed),
 				new UniverseTreeItem('📖 Story', 'story', vscode.TreeItemCollapsibleState.Collapsed),
+				new UniverseTreeItem('🌊 Lake', 'lake', vscode.TreeItemCollapsibleState.Collapsed),
 			];
 		}
 		// Child items would show recent analyses per universe

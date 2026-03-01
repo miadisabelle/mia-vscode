@@ -3,7 +3,7 @@
 
 // ─── Three Universe Core ─────────────────────────────────────────
 
-export type Universe = 'engineer' | 'ceremony' | 'story';
+export type Universe = 'engineer' | 'ceremony' | 'story' | 'lake';
 export type UniverseFocus = Universe | 'balanced';
 export type AnalysisDepth = 'quick' | 'standard' | 'deep';
 export type DecorationLevel = 'minimal' | 'moderate' | 'rich';
@@ -14,6 +14,7 @@ export interface ThreeUniverseResult {
 	engineer: UniverseAnalysis;
 	ceremony: UniverseAnalysis;
 	story: UniverseAnalysis;
+	lake: UniverseAnalysis;
 	overallSignificance: number; // 1-5
 	sessionId?: string;
 }
@@ -122,6 +123,7 @@ export interface CoherenceScores {
 	engineer: number;
 	ceremony: number;
 	story: number;
+	lake: number;
 }
 
 export interface CoherenceUpdateEvent extends NarrativeEvent {
