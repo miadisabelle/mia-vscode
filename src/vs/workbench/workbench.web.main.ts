@@ -55,7 +55,7 @@ import './services/host/browser/browserHostService.js';
 import '../platform/meteredConnection/browser/meteredConnectionService.js';
 import './services/lifecycle/browser/lifecycleService.js';
 import './services/clipboard/browser/clipboardService.js';
-import './services/localization/browser/localeService.js';
+import './services/localization/electron-browser/localeService.js';
 import './services/path/browser/pathService.js';
 import './services/themes/browser/browserHostColorSchemeService.js';
 import './services/encryption/browser/encryptionService.js';

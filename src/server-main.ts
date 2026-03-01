@@ -22,6 +22,9 @@ import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer.js';
 perf.mark('code/server/start');
 (globalThis as { vscodeServerStartTime?: number }).vscodeServerStartTime = performance.now();
 
+// This is not indented to make the diff less noisy.  We need to move this out
+// of the top-level so it will not run immediately and we can control the start.
+async function start() {
 // Do a quick parse to determine if a server or the cli needs to be started
 const parsedArgs = minimist(process.argv.slice(2), {
 	boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms', 'update-extensions'],
@@ -149,6 +152,7 @@ if (shouldSpawnCli) {
 			_remoteExtensionHostAgentServer.dispose();
 		}
 	});
+}
 }
 
 function sanitizeStringArg(val: unknown): string | undefined {
@@ -282,4 +286,23 @@ function prompt(question: string): Promise<boolean> {
 			}
 		});
 	});
+}
+
+async function loadCodeWithNls() {
+	const nlsConfiguration = await resolveNLSConfiguration({
+		userLocale: 'en',
+		osLocale: 'en',
+		commit: product.commit,
+		userDataPath: '',
+		nlsMetadataPath: import.meta.dirname,
+	});
+	return loadCode(nlsConfiguration);
+}
+
+// This alias prevents the name getting mangled during minification which would
+// make it difficult to import.
+export { loadCodeWithNls as loadCodeWithNls };
+
+if (!process.env.CODE_SERVER_PARENT_PID) {
+	start();
 }

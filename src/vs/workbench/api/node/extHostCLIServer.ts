@@ -44,7 +44,12 @@ export interface ExtensionManagementPipeArgs {
 	force?: boolean;
 }
 
-export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | OpenExternalCommandPipeArgs | ExtensionManagementPipeArgs;
+export interface ClipboardPipeArgs {
+	type: 'clipboard';
+	content: string;
+}
+
+export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | OpenExternalCommandPipeArgs | ExtensionManagementPipeArgs | ClipboardPipeArgs;
 
 export interface ICommandsExecuter {
 	executeCommand<T>(id: string, ...args: any[]): Promise<T>;
@@ -109,6 +114,9 @@ export class CLIServerBase {
 						break;
 					case 'extensionManagement':
 						returnObj = await this.manageExtensions(data);
+						break;
+					case 'clipboard':
+						returnObj = await this.clipboard(data);
 						break;
 					default:
 						sendResponse(404, `Unknown message type: ${data.type}`);
@@ -178,6 +186,10 @@ export class CLIServerBase {
 
 	private async getStatus(data: StatusPipeArgs): Promise<string | undefined> {
 		return await this._commands.executeCommand<string | undefined>('_remoteCLI.getSystemStatus');
+	}
+
+	private async clipboard(data: ClipboardPipeArgs): Promise<undefined> {
+		return await this._commands.executeCommand('_remoteCLI.setClipboard', data.content);
 	}
 
 	dispose(): void {

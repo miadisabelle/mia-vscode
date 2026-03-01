@@ -47,8 +47,11 @@ export function createWorkbenchDialogOptions(options: Partial<IDialogOptions>, k
 
 export function createBrowserAboutDialogDetails(productService: IProductService): { title: string; details: string; detailsToCopy: string } {
 	const detailString = (useAgo: boolean): string => {
-		return localize('aboutDetail',
-			"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
+		return localize('aboutCodeServerDetail',
+			"code-server: {0}",
+			productService.codeServerVersion ? `v${productService.codeServerVersion}` : 'Unknown'
+		) + '\n' + localize('aboutDetail',
+			"Code: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
 			productService.version || 'Unknown',
 			productService.commit || 'Unknown',
 			productService.date ? `${productService.date}${useAgo ? ' (' + fromNow(new Date(productService.date), true) + ')' : ''}` : 'Unknown',

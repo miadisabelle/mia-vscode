@@ -26,6 +26,10 @@ export async function resolveMarketplaceHeaders(version: string,
 		'User-Agent': `VSCode ${version} (${productService.nameShort})`
 	};
 
+	if (productService.extensionsGallery?.authorizationHeaderToken) {
+		headers['Authorization'] = `Bearer ${productService.extensionsGallery.authorizationHeaderToken}`;
+	}
+
 	if (supportsTelemetry(productService, environmentService) && getTelemetryLevel(configurationService) === TelemetryLevel.USAGE) {
 		const serviceMachineId = await getServiceMachineId(environmentService, fileService, storageService);
 		headers['X-Market-User-Id'] = serviceMachineId;
