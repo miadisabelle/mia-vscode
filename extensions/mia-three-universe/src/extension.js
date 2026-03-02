@@ -326,10 +326,13 @@ async function decomposePrompt() {
 	if (httpClient) {
 		try {
 			const result = await httpClient.decompose(text);
-			getLog('narrative').info(`Decomposed into ${result.actions.length} actions`);
-			vscode.window.showInformationMessage(`Decomposed: ${result.actions.length} actions, ${result.implicitIntents.length} implicit intents`);
+			const actionCount = result.action_stack?.length ?? 0;
+			const implicitCount = result.implicit_intents?.length ?? 0;
+			getLog('narrative').info(`Decomposed into ${actionCount} actions, ${implicitCount} implicit intents`);
+			vscode.window.showInformationMessage(`Mia: Decomposed into ${actionCount} actions, ${implicitCount} implicit intents`);
 		} catch (err) {
 			getLog('server').error(`Decomposition failed: ${err.message}`);
+			vscode.window.showErrorMessage(`Mia decomposition failed: ${err.message}`);
 		}
 	}
 }
