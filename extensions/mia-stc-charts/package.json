@@ -2,7 +2,7 @@
 	"name": "stc-charts",
 	"displayName": "Mia STC Charts",
 	"description": "Structural Tension Chart management for Mia Code",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"publisher": "mia",
 	"license": "MIT",
 	"engines": { "vscode": "^1.96.0" },
@@ -13,22 +13,51 @@
 		"commands": [
 			{
 				"command": "mia.stcCharts.review",
-				"title": "Mia: Review STC Chart"
+				"title": "Mia: Review STC Chart",
+				"icon": "$(open-preview)"
 			},
 			{
 				"command": "mia.stcCharts.archive",
-				"title": "Mia: Archive STC Chart"
+				"title": "Mia: Archive STC Chart",
+				"icon": "$(archive)"
 			},
 			{
 				"command": "mia.stcCharts.export",
-				"title": "Mia: Export STC Chart"
+				"title": "Mia: Export STC Chart as Markdown",
+				"icon": "$(export)"
+			},
+			{
+				"command": "mia.stcCharts.addStep",
+				"title": "Mia: Add Action Step",
+				"icon": "$(add)"
+			},
+			{
+				"command": "mia.stcCharts.completeStep",
+				"title": "Mia: Complete Action Step",
+				"icon": "$(check)"
+			},
+			{
+				"command": "mia.stcCharts.deleteChart",
+				"title": "Mia: Delete STC Chart",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "mia.stcCharts.refresh",
+				"title": "Mia: Refresh Charts",
+				"icon": "$(refresh)"
 			}
 		],
 		"menus": {
+			"view/title": [
+				{ "command": "mia.stcCharts.refresh", "when": "view == mia.chartExplorer", "group": "navigation" }
+			],
 			"view/item/context": [
 				{ "command": "mia.stcCharts.review", "when": "viewItem == stcChart", "group": "navigation" },
+				{ "command": "mia.stcCharts.addStep", "when": "viewItem == stcChart", "group": "navigation" },
+				{ "command": "mia.stcCharts.export", "when": "viewItem == stcChart" },
 				{ "command": "mia.stcCharts.archive", "when": "viewItem == stcChart" },
-				{ "command": "mia.stcCharts.export", "when": "viewItem == stcChart" }
+				{ "command": "mia.stcCharts.deleteChart", "when": "viewItem == stcChart" },
+				{ "command": "mia.stcCharts.completeStep", "when": "viewItem == actionStep" }
 			]
 		}
 	}

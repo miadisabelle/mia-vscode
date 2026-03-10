@@ -2,7 +2,7 @@
 	"name": "story-monitor",
 	"displayName": "Mia Story Monitor",
 	"description": "Live narrative event dashboard for Mia Code",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"publisher": "mia",
 	"license": "MIT",
 	"engines": { "vscode": "^1.96.0" },
@@ -13,12 +13,40 @@
 		"commands": [
 			{
 				"command": "mia.storyMonitor.open",
-				"title": "Mia: Open Story Monitor Dashboard"
+				"title": "Mia: Open Story Monitor Dashboard",
+				"icon": "$(pulse)"
 			},
 			{
 				"command": "mia.storyMonitor.toggleAmbient",
-				"title": "Mia: Toggle Ambient Story Indicators"
+				"title": "Mia: Toggle Ambient Story Indicators",
+				"icon": "$(eye)"
+			},
+			{
+				"command": "mia.storyMonitor.logBeat",
+				"title": "Mia: Log Story Beat",
+				"icon": "$(record)"
+			},
+			{
+				"command": "mia.storyMonitor.endSession",
+				"title": "Mia: End Current Session",
+				"icon": "$(debug-stop)"
+			},
+			{
+				"command": "mia.storyMonitor.setIntent",
+				"title": "Mia: Set Session Intent",
+				"icon": "$(edit)"
+			},
+			{
+				"command": "mia.storyMonitor.exportSession",
+				"title": "Mia: Export Session as Narrative",
+				"icon": "$(export)"
 			}
-		]
+		],
+		"menus": {
+			"view/title": [
+				{ "command": "mia.storyMonitor.logBeat", "when": "view == mia.sessionExplorer", "group": "navigation" },
+				{ "command": "mia.storyMonitor.open", "when": "view == mia.sessionExplorer", "group": "navigation" }
+			]
+		}
 	}
 }

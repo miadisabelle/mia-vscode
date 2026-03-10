@@ -2,7 +2,7 @@
 	"name": "mia-editor-intelligence",
 	"displayName": "Mia Editor Intelligence",
 	"description": "CodeLens, hover, decorations, inline suggestions, and diagnostics for narrative-aware editing",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"publisher": "mia",
 	"license": "MIT",
 	"engines": { "vscode": "^1.96.0" },
@@ -13,7 +13,23 @@
 		"commands": [
 			{
 				"command": "mia.editorIntelligence.refreshDecorations",
-				"title": "Mia: Refresh Editor Decorations"
+				"title": "Mia: Refresh Editor Decorations",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "mia.editorIntelligence.analyzeFile",
+				"title": "Mia: Analyze Current File (Editor Intelligence)",
+				"icon": "$(search)"
+			},
+			{
+				"command": "mia.editorIntelligence.clearDiagnostics",
+				"title": "Mia: Clear All Diagnostics",
+				"icon": "$(clear-all)"
+			},
+			{
+				"command": "mia.editorIntelligence.toggleDecorations",
+				"title": "Mia: Toggle Editor Decorations",
+				"icon": "$(eye)"
 			}
 		]
 	}
