@@ -25,7 +25,7 @@ export const RunPlaywrightCodeToolData: IToolData = {
 		properties: {
 			pageId: {
 				type: 'string',
-				description: `The browser page ID, acquired from context or ${OpenPageToolId}.`
+				description: `The browser page ID, acquired from context or the open tool.`
 			},
 			code: {
 				type: 'string',
@@ -97,6 +97,7 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 			],
 			toolResultDetails: {
 				input: params.code.trim(),
+				inputLanguage: 'javascript',
 				output: result.result
 					? [{ type: 'embed', isText: true, value: JSON.stringify(result.result, null, 2) }]
 					: [],

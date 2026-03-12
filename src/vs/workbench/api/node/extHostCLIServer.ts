@@ -52,7 +52,7 @@ export interface ClipboardPipeArgs {
 export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | OpenExternalCommandPipeArgs | ExtensionManagementPipeArgs | ClipboardPipeArgs;
 
 export interface ICommandsExecuter {
-	executeCommand<T>(id: string, ...args: any[]): Promise<T>;
+	executeCommand<T>(id: string, ...args: unknown[]): Promise<T>;
 }
 
 export class CLIServerBase {

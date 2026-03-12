@@ -30,7 +30,7 @@ import { SnippetString } from './extHostTypes/snippetString.js';
 import { SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
 import { TextEdit } from './extHostTypes/textEdit.js';
 import { WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
-import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
+import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookTypes.js';
 
 export { CodeActionKind } from './extHostTypes/codeActionKind.js';
 export {
@@ -1273,6 +1273,12 @@ export enum ShellQuoting {
 export enum TaskScope {
 	Global = 1,
 	Workspace = 2
+}
+
+export enum TaskRunOn {
+	Default = 1,
+	FolderOpen = 2,
+	WorktreeCreated = 3,
 }
 
 export class CustomExecution implements vscode.CustomExecution {
@@ -3713,6 +3719,40 @@ export class ChatDebugEventMessageContent {
 		this.type = type;
 		this.message = message;
 		this.sections = sections;
+	}
+}
+
+export class ChatDebugEventToolCallContent {
+	readonly _kind = 'toolCallContent';
+	toolName: string;
+	result?: ChatDebugToolCallResult;
+	durationInMillis?: number;
+	input?: string;
+	output?: string;
+
+	constructor(toolName: string) {
+		this.toolName = toolName;
+	}
+}
+
+export class ChatDebugEventModelTurnContent {
+	readonly _kind = 'modelTurnContent';
+	requestName: string;
+	model?: string;
+	status?: string;
+	durationInMillis?: number;
+	timeToFirstTokenInMillis?: number;
+	maxInputTokens?: number;
+	maxOutputTokens?: number;
+	inputTokens?: number;
+	outputTokens?: number;
+	cachedTokens?: number;
+	totalTokens?: number;
+	errorMessage?: string;
+	sections?: ChatDebugMessageSection[];
+
+	constructor(requestName: string) {
+		this.requestName = requestName;
 	}
 }
 
