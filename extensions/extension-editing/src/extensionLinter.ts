@@ -67,7 +67,7 @@ export class ExtensionLinter {
 	private packageJsonQ = new Set<TextDocument>();
 	private readmeQ = new Set<TextDocument>();
 	private timer: NodeJS.Timeout | undefined;
-	private markdownIt: MarkdownIt | undefined;
+	private markdownIt: MarkdownIt.MarkdownIt | undefined;
 	private parse5: typeof import('parse5') | undefined;
 
 	constructor() {

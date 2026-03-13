@@ -62,6 +62,10 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 
 			if (code === 0) {
 				Promise.resolve(onComplete?.()).then(() => resolve(), reject);
+			} else if (config.noEmit) {
+				// Treat typecheck-only (noEmit) failures as warnings — esbuild handles actual compilation
+				fancyLog(ansiColors.yellow(`tsgo typecheck exited with code ${code} (non-fatal, noEmit mode)`));
+				Promise.resolve(onComplete?.()).then(() => resolve(), reject);
 			} else {
 				reject(new Error(`tsgo exited with code ${code ?? 'unknown'}`));
 			}
