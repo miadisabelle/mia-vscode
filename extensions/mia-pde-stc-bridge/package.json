@@ -2,7 +2,7 @@
 	"name": "pde-stc-bridge",
 	"displayName": "Mia PDE to STC Bridge",
 	"description": "Bridge PDE decompositions to Structural Tension Charts within the editor",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"publisher": "mia",
 	"license": "MIT",
 	"engines": { "vscode": "^1.96.0" },
@@ -37,11 +37,8 @@
 				"icon": "$(json)"
 			}
 		],
-		"viewsContainers": {
-			"activitybar": []
-		},
 		"views": {
-			"stc-dashboard": [
+			"mia-stc-dashboard": [
 				{
 					"id": "mia.pdeExplorer",
 					"name": "PDE Decompositions",

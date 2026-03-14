@@ -162,6 +162,7 @@ function activate(context) {
 			updateMedicineWheelDirection('east');
 			processEvent({ type: 'pde.decomposition', payload: beat, timestamp: beat.timestamp, universe: 'ceremony', significance: beat.significance });
 			updateAmbientBars();
+			persistSession();
 		} catch { /* PDE file parse failed silently */ }
 	});
 	context.subscriptions.push(pdeWatcher);
@@ -205,6 +206,7 @@ function activate(context) {
 				updateMedicineWheelDirection('north');
 				processEvent({ type: 'stc.advancement', payload: beat, timestamp: beat.timestamp, universe: 'engineer', significance: beat.significance });
 				updateAmbientBars();
+				persistSession();
 			}
 
 			sendDashboardUpdate();
@@ -296,6 +298,7 @@ function activate(context) {
 			}
 
 			updateAmbientBars();
+			persistSession();
 			vscode.window.showInformationMessage(`Beat logged: ${description}`);
 		}),
 		vscode.commands.registerCommand('mia.storyMonitor.setIntent', async () => {
@@ -404,10 +407,6 @@ function processEvent(event) {
 				sessionState.coherence[u] = Math.max(0, sessionState.coherence[u] - 0.01);
 			}
 		}
-	}
-
-	if (enriched.type === 'beat.created') {
-		sessionState.beatCount++;
 	}
 
 	sessionExplorerProvider?.refresh();
@@ -568,7 +567,7 @@ function openDashboard(context) {
 		{ enableScripts: true, retainContextWhenHidden: true }
 	);
 
-	dashboardPanel.webview.html = getDashboardHtml();
+	dashboardPanel.webview.html = getDashboardHtml(dashboardPanel.webview);
 
 	dashboardPanel.webview.onDidReceiveMessage(async (msg) => {
 		switch (msg.command) {
@@ -613,9 +612,14 @@ function sendDashboardUpdate() {
 	});
 }
 
-function getDashboardHtml() {
+function getDashboardHtml(webview) {
+	const nonce = getNonce();
+	const cspSource = webview.cspSource;
 	return `<!DOCTYPE html>
 <html><head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 	* { box-sizing: border-box; margin: 0; padding: 0; }
 	body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 20px; overflow-y: auto; }
@@ -707,7 +711,7 @@ function getDashboardHtml() {
 	.pulsing { animation: pulse 2s infinite; }
 </style>
 </head><body>
-	<h1>${'\\u{1F4D6}'} Story Monitor</h1>
+	<h1>&#x1F4D6; Story Monitor</h1>
 
 	<div class="session-header">
 		<div class="session-intent" onclick="setIntent()" id="intent">Loading...</div>
@@ -717,20 +721,20 @@ function getDashboardHtml() {
 			<span id="phase-display">germination</span>
 		</div>
 		<div class="phase-pills">
-			<span class="phase-pill" data-phase="germination" onclick="setPhase('germination')">${'\\u{1F331}'} Germination</span>
-			<span class="phase-pill" data-phase="assimilation" onclick="setPhase('assimilation')">${'\\u{1F504}'} Assimilation</span>
-			<span class="phase-pill" data-phase="completion" onclick="setPhase('completion')">${'\\u{2728}'} Completion</span>
+			<span class="phase-pill" data-phase="germination" onclick="setPhase('germination')">&#x1F331; Germination</span>
+			<span class="phase-pill" data-phase="assimilation" onclick="setPhase('assimilation')">&#x1F504; Assimilation</span>
+			<span class="phase-pill" data-phase="completion" onclick="setPhase('completion')">&#x2728; Completion</span>
 		</div>
 	</div>
 
 	<h2>Medicine Wheel</h2>
 	<div class="medicine-wheel">
 		<div class="mw-compass">
-			<div class="mw-dir east" id="mw-east">${'\\u{1F305}'} East<br><small>Vision</small><br><span class="mw-beat-num" id="mw-east-n">0</span></div>
-			<div class="mw-dir north" id="mw-north">${'\\u{2744}\\u{FE0F}'} North<br><small>Wisdom</small><br><span class="mw-beat-num" id="mw-north-n">0</span></div>
-			<div class="mw-center" id="mw-center">${'\\u{1F305}'}</div>
-			<div class="mw-dir south" id="mw-south">${'\\u{1F525}'} South<br><small>Growth</small><br><span class="mw-beat-num" id="mw-south-n">0</span></div>
-			<div class="mw-dir west" id="mw-west">${'\\u{1F30A}'} West<br><small>Reflect</small><br><span class="mw-beat-num" id="mw-west-n">0</span></div>
+			<div class="mw-dir east" id="mw-east">&#x1F305; East<br><small>Vision</small><br><span class="mw-beat-num" id="mw-east-n">0</span></div>
+			<div class="mw-dir north" id="mw-north">&#x2744;&#xFE0F; North<br><small>Wisdom</small><br><span class="mw-beat-num" id="mw-north-n">0</span></div>
+			<div class="mw-center" id="mw-center">&#x1F305;</div>
+			<div class="mw-dir south" id="mw-south">&#x1F525; South<br><small>Growth</small><br><span class="mw-beat-num" id="mw-south-n">0</span></div>
+			<div class="mw-dir west" id="mw-west">&#x1F30A; West<br><small>Reflect</small><br><span class="mw-beat-num" id="mw-west-n">0</span></div>
 		</div>
 		<div class="mw-counts">
 			<span class="mw-count" id="mw-total">Total beats by direction: 0</span>
@@ -738,7 +742,7 @@ function getDashboardHtml() {
 	</div>
 
 	<div class="chart-progress" id="chart-section" style="display:none;">
-		<h2 style="margin:0 0 4px;">${'\\u{1F4D0}'} STC Chart Progress</h2>
+		<h2 style="margin:0 0 4px;">&#x1F4D0; STC Chart Progress</h2>
 		<div class="chart-bar"><div class="chart-fill" id="chart-fill" style="width:0%;"></div></div>
 		<div class="chart-label" id="chart-label">0/0 actions complete (0%)</div>
 	</div>
@@ -752,7 +756,7 @@ function getDashboardHtml() {
 					stroke-dasharray="213.6" stroke-dashoffset="106.8" />
 				<text class="gauge-text" x="40" y="40" id="gauge-eng-text">50%</text>
 			</svg>
-			<div class="gauge-label">${'\\u{1F527}'} Engineer</div>
+			<div class="gauge-label">&#x1F527; Engineer</div>
 		</div>
 		<div class="gauge">
 			<svg viewBox="0 0 80 80">
@@ -761,7 +765,7 @@ function getDashboardHtml() {
 					stroke-dasharray="213.6" stroke-dashoffset="106.8" />
 				<text class="gauge-text" x="40" y="40" id="gauge-cer-text">50%</text>
 			</svg>
-			<div class="gauge-label">${'\\u{1F33F}'} Ceremony</div>
+			<div class="gauge-label">&#x1F33F; Ceremony</div>
 		</div>
 		<div class="gauge">
 			<svg viewBox="0 0 80 80">
@@ -770,7 +774,7 @@ function getDashboardHtml() {
 					stroke-dasharray="213.6" stroke-dashoffset="106.8" />
 				<text class="gauge-text" x="40" y="40" id="gauge-sto-text">50%</text>
 			</svg>
-			<div class="gauge-label">${'\\u{1F4D6}'} Story</div>
+			<div class="gauge-label">&#x1F4D6; Story</div>
 		</div>
 	</div>
 
@@ -780,9 +784,9 @@ function getDashboardHtml() {
 			<div class="arc-fill" id="arc-fill" style="width:33%;background:linear-gradient(90deg,#4ADE80,#A78BFA);"></div>
 		</div>
 		<div class="arc-labels">
-			<span>${'\\u{1F331}'} Germination</span>
-			<span>${'\\u{1F504}'} Assimilation</span>
-			<span>${'\\u{2728}'} Completion</span>
+			<span>&#x1F331; Germination</span>
+			<span>&#x1F504; Assimilation</span>
+			<span>&#x2728; Completion</span>
 		</div>
 	</div>
 
@@ -796,7 +800,7 @@ function getDashboardHtml() {
 		<div class="empty">Waiting for narrative events...</div>
 	</div>
 
-<script>
+<script nonce="${nonce}">
 	const vscode = acquireVsCodeApi();
 	const circumference = 2 * Math.PI * 34;
 	const dirIcons = { east: '\\u{1F305}', south: '\\u{1F525}', west: '\\u{1F30A}', north: '\\u{2744}\\u{FE0F}' };
@@ -813,6 +817,9 @@ function getDashboardHtml() {
 
 	function updateDashboard(data) {
 		const { session, events, beats } = data;
+
+		// Store startTime for auto-refresh
+		window._startTime = session.startTime;
 
 		// Intent
 		document.getElementById('intent').textContent = session.intent || 'Click to set session intent...';
@@ -1017,6 +1024,15 @@ function generateId() {
 	return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+function getNonce() {
+	const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	let nonce = '';
+	for (let i = 0; i < 32; i++) {
+		nonce += chars.charAt(Math.floor(Math.random() * chars.length));
+	}
+	return nonce;
+}
+
 function formatElapsed(ms) {
 	const s = Math.floor(ms / 1000);
 	const h = Math.floor(s / 3600);
@@ -1066,6 +1082,38 @@ async function readCoaiaFile(uri) {
 	} catch {
 		return null;
 	}
+}
+
+// allow-any-unicode-next-line
+// ─── Session Persistence (.mino/) ───────────────────────────────
+
+async function persistSession() {
+	try {
+		const folders = vscode.workspace.workspaceFolders;
+		if (!folders) { return; }
+		const minoDir = vscode.Uri.joinPath(folders[0].uri, '.mino', 'sessions', sessionState.id);
+		try {
+			await vscode.workspace.fs.stat(vscode.Uri.joinPath(folders[0].uri, '.mino'));
+		} catch {
+			// .mino/ does not exist — skip persistence
+			return;
+		}
+		await vscode.workspace.fs.createDirectory(minoDir);
+		const sessionData = {
+			id: sessionState.id,
+			intent: sessionState.intent,
+			phase: sessionState.phase,
+			startTime: new Date(sessionState.startTime).toISOString(),
+			direction: sessionState.medicineWheelDirection,
+			directionCounts: sessionState.directionCounts,
+			beatCount: sessionState.beatCount,
+			coherence: sessionState.coherence,
+			chartProgress: sessionState.chartProgress,
+			beats: sessionState.beats,
+		};
+		const fileUri = vscode.Uri.joinPath(minoDir, 'session.json');
+		await vscode.workspace.fs.writeFile(fileUri, Buffer.from(JSON.stringify(sessionData, null, 2)));
+	} catch { /* persistence is best-effort */ }
 }
 
 module.exports = { activate, deactivate };

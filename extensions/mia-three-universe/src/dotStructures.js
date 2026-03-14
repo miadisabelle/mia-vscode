@@ -105,7 +105,7 @@ async function getPdeDecompositions(workspaceFolderUri) {
 		let prompt = null;
 		try {
 			const raw = await vscode.workspace.fs.readFile(file.uri);
-			const parsed = JSON.parse(Buffer.from(raw).toString('utf8'));
+			const parsed = JSON.parse(new TextDecoder().decode(raw));
 			id = parsed.id || parsed.decomposition_id || null;
 			prompt = parsed.original_prompt || parsed.prompt || null;
 		} catch {
@@ -131,7 +131,7 @@ async function getCoaiaCharts(workspaceFolderUri) {
 		let entityCount = 0;
 		try {
 			const raw = await vscode.workspace.fs.readFile(file.uri);
-			const lines = Buffer.from(raw).toString('utf8').split('\n').filter(l => l.trim());
+			const lines = new TextDecoder().decode(raw).split('\n').filter(l => l.trim());
 			entityCount = lines.length;
 		} catch {
 			// allow-any-unicode-next-line

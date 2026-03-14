@@ -2,15 +2,20 @@
 	"name": "stc-charts",
 	"displayName": "Mia STC Charts",
 	"description": "Structural Tension Chart management for Mia Code",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"publisher": "mia",
 	"license": "MIT",
 	"engines": { "vscode": "^1.96.0" },
-	"activationEvents": ["onView:mia.chartExplorer", "onCommand:mia.createChart"],
+	"activationEvents": ["onView:mia.chartExplorer"],
 	"main": "./src/extension.js",
 	"extensionDependencies": ["mia.three-universe"],
 	"contributes": {
 		"commands": [
+			{
+				"command": "mia.stcCharts.createChart",
+				"title": "Mia: Create STC Chart",
+				"icon": "$(add)"
+			},
 			{
 				"command": "mia.stcCharts.review",
 				"title": "Mia: Review STC Chart",
@@ -54,6 +59,7 @@
 		],
 		"menus": {
 			"view/title": [
+				{ "command": "mia.stcCharts.createChart", "when": "view == mia.chartExplorer", "group": "navigation" },
 				{ "command": "mia.stcCharts.refresh", "when": "view == mia.chartExplorer", "group": "navigation" }
 			],
 			"view/item/context": [

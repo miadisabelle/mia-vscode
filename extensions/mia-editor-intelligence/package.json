@@ -30,6 +30,20 @@
 				"command": "mia.editorIntelligence.toggleDecorations",
 				"title": "Mia: Toggle Editor Decorations",
 				"icon": "$(eye)"
+			},
+			{
+				"command": "mia.editorIntelligence.dismissDiagnostic",
+				"title": "Mia: Dismiss Diagnostic"
+			},
+			{
+				"command": "mia.editorIntelligence.createChartFromDiagnostic",
+				"title": "Mia: Create STC Chart from Diagnostic",
+				"icon": "$(graph)"
+			},
+			{
+				"command": "mia.editorIntelligence.showFullAnalysis",
+				"title": "Mia: Show Full Analysis",
+				"icon": "$(open-preview)"
 			}
 		],
 		"languages": [

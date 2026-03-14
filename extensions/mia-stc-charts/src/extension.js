@@ -46,6 +46,36 @@ function activate(context) {
 
 	// Commands
 	context.subscriptions.push(
+		vscode.commands.registerCommand('mia.stcCharts.createChart', async () => {
+			const title = await vscode.window.showInputBox({ prompt: 'Chart title', placeHolder: 'e.g. Refactor Auth Module' });
+			if (!title) { return; }
+			const desiredOutcome = await vscode.window.showInputBox({ prompt: 'Desired Outcome', placeHolder: 'What does success look like?' });
+			if (!desiredOutcome) { return; }
+			const currentReality = await vscode.window.showInputBox({ prompt: 'Current Reality', placeHolder: 'Where are things right now?' });
+			if (!currentReality) { return; }
+			const dirPick = await vscode.window.showQuickPick(
+				['east', 'south', 'west', 'north'],
+				{ placeHolder: 'Medicine Wheel direction (optional)', canPickMany: false }
+			);
+			const chartId = 'chart-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+			const now = new Date().toISOString();
+			const chart = {
+				id: chartId,
+				title,
+				desiredOutcome,
+				currentReality,
+				actionSteps: [],
+				metadata: { direction: dirPick || undefined },
+				created: now,
+				modified: now,
+				_source: 'stc',
+			};
+			await saveChart(chart);
+			activeChartId = chartId;
+			chartExplorerProvider.refresh();
+			updateStatusBar();
+			openChartWebview(context, chart);
+		}),
 		vscode.commands.registerCommand('mia.stcCharts.review', (item) => {
 			if (item && item.chart) {
 				activeChartId = item.chart.id;
@@ -356,16 +386,42 @@ async function loadLocalCharts() {
 			if (name.endsWith('.json')) {
 				try {
 					const uri = vscode.Uri.joinPath(chartsDir, name);
-					const content = await vscode.workspace.fs.readFile(uri);
-					const chart = JSON.parse(Buffer.from(content).toString());
-					chart._source = 'stc';
+					const raw = await vscode.workspace.fs.readFile(uri);
+					const chart = JSON.parse(new TextDecoder().decode(raw));
+					normalizeStcChart(chart);
 					charts.push(chart);
 				} catch { /* skip malformed files */ }
 			}
 		}
-		return charts.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+		return charts.sort((a, b) => new Date(b.modified || 0) - new Date(a.modified || 0));
 	} catch {
 		return [];
+	}
+}
+
+/**
+ * Normalize an STC chart loaded from JSON so internal code can use
+ * a single field naming convention regardless of file format.
+ * STC JSON uses: createdAt/updatedAt, top-level direction/phase,
+ * and action steps with title/status fields.
+ */
+function normalizeStcChart(chart) {
+	chart._source = 'stc';
+	// Timestamp normalization
+	if (!chart.modified) { chart.modified = chart.updatedAt || chart.createdAt || new Date().toISOString(); }
+	if (!chart.created) { chart.created = chart.createdAt || new Date().toISOString(); }
+	// Metadata normalization — promote top-level fields
+	if (!chart.metadata) { chart.metadata = {}; }
+	if (chart.direction && !chart.metadata.direction) { chart.metadata.direction = chart.direction; }
+	if (chart.phase && !chart.metadata.phase) { chart.metadata.phase = chart.phase; }
+	// Action step normalization: title→description, status→completed
+	for (const step of (chart.actionSteps || [])) {
+		if (step.title && !step.description) { step.description = step.title; }
+		if (!step.description) { step.description = step.title || ''; }
+		if (step.completed === undefined && step.status !== undefined) {
+			step.completed = (step.status === 'complete' || step.status === 'completed');
+		}
+		if (step.completed === undefined) { step.completed = false; }
 	}
 }
 
@@ -386,7 +442,7 @@ async function loadCoaiaCharts() {
 			if (name.endsWith('.jsonl')) {
 				try {
 					const uri = vscode.Uri.joinPath(coaiaDir, name);
-					const content = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString();
+					const content = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
 					const parsed = parseCoaiaJsonl(content, name);
 					if (parsed) { charts.push(parsed); }
 				} catch { /* skip malformed JSONL files */ }
@@ -453,7 +509,8 @@ function parseCoaiaJsonl(content, filename) {
 			actionSteps.push({
 				id: stepEntity.name,
 				description: (stepEntity.observations || []).join(' '),
-				completed: stepEntity.metadata?.status === 'completed',
+				completed: stepEntity.metadata?.status === 'completed' || stepEntity.metadata?.status === 'complete',
+				direction: stepEntity.metadata?.direction,
 				order: stepEntity.metadata?.order || actionSteps.length + 1,
 			});
 		}
@@ -465,7 +522,8 @@ function parseCoaiaJsonl(content, filename) {
 				actionSteps.push({
 					id: entity.name,
 					description: (entity.observations || []).join(' '),
-					completed: entity.metadata?.status === 'completed',
+					completed: entity.metadata?.status === 'completed' || entity.metadata?.status === 'complete',
+					direction: entity.metadata?.direction,
 					order: entity.metadata?.order || actionSteps.length + 1,
 				});
 			}
@@ -477,7 +535,7 @@ function parseCoaiaJsonl(content, filename) {
 
 	return {
 		id: chartId,
-		title: title.replace(/^Master chart for:\s*/i, '').substring(0, 80),
+		title: title.replace(/^Master\s+(?:structural\s+tension\s+)?chart\s+(?:for[:\s]\s*)?(?:the\s+)?/i, '').substring(0, 80),
 		desiredOutcome,
 		currentReality,
 		actionSteps,
@@ -502,7 +560,7 @@ async function saveChart(chart) {
 	const chartsDir = vscode.Uri.joinPath(folders[0].uri, '.stc', 'charts');
 	await vscode.workspace.fs.createDirectory(chartsDir);
 	const fileUri = vscode.Uri.joinPath(chartsDir, `${chart.id}.json`);
-	const content = Buffer.from(JSON.stringify(chart, null, 2));
+	const content = new TextEncoder().encode(JSON.stringify(chart, null, 2));
 	await vscode.workspace.fs.writeFile(fileUri, content);
 
 	// Sync to server if connected
@@ -524,7 +582,7 @@ async function archiveChart(chart) {
 
 	chart.archivedAt = new Date().toISOString();
 	const destUri = vscode.Uri.joinPath(archiveDir, `${chart.id}.json`);
-	await vscode.workspace.fs.writeFile(destUri, Buffer.from(JSON.stringify(chart, null, 2)));
+	await vscode.workspace.fs.writeFile(destUri, new TextEncoder().encode(JSON.stringify(chart, null, 2)));
 
 	try { await vscode.workspace.fs.delete(sourceUri); } catch { /* already gone */ }
 }
@@ -587,7 +645,7 @@ async function exportChartMarkdown(chart) {
 		const stcDir = vscode.Uri.joinPath(folders[0].uri, '.stc');
 		await vscode.workspace.fs.createDirectory(stcDir);
 		const fileUri = vscode.Uri.joinPath(stcDir, `${chart.id}.md`);
-		await vscode.workspace.fs.writeFile(fileUri, Buffer.from(markdown));
+		await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(markdown));
 		const doc = await vscode.workspace.openTextDocument(fileUri);
 		await vscode.window.showTextDocument(doc, { preview: true });
 		vscode.window.showInformationMessage(`Exported: ${chart.title}.md`);
@@ -787,7 +845,6 @@ function getChartWebviewHtml(chart) {
 		</svg>
 	</div>
 
-	// allow-any-unicode-next-line
 	<!-- Structural Tension Visualization: Desired Outcome (top) → Action Steps (path) → Current Reality (bottom) -->
 	<div class="tension-container">
 		<div class="tension-pole desired">

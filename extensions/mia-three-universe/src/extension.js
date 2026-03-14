@@ -9,6 +9,7 @@ const { NarrativeWebSocket } = require('./ws/narrativeWebSocket');
 const { MCPClientService } = require('./mcp/mcpClient');
 const {
 	DOT_STRUCTURES,
+	scanDotStructureDir,
 	getPdeDecompositions,
 	getCoaiaCharts,
 	getDotStructures,
@@ -47,12 +48,13 @@ function activate(context) {
 	const config = vscode.workspace.getConfiguration('mia');
 
 	if (!config.get('enabled', true)) {
-		return;
+		return createDisabledApi();
 	}
 
 	narrativeEventEmitter = new vscode.EventEmitter();
 	connectionStateEmitter = new vscode.EventEmitter();
 	dotStructureEventEmitter = new vscode.EventEmitter();
+	context.subscriptions.push(narrativeEventEmitter, connectionStateEmitter, dotStructureEventEmitter);
 
 	const serverUrl = config.get('serverUrl', '');
 
@@ -78,13 +80,13 @@ function activate(context) {
 	context.subscriptions.push(...dotWatcherDisposables);
 
 	// Log dot-structure changes to PDE/STC channels
-	dotStructureEventEmitter.event((event) => {
+	context.subscriptions.push(dotStructureEventEmitter.event((event) => {
 		if (event.dotStructure === '.pde') {
 			getLog('pde').info(`[${event.type}] ${event.uri.fsPath}`);
 		} else if (event.dotStructure === '.coaia' || event.dotStructure === '.stc') {
 			getLog('stc').info(`[${event.type}] ${event.uri.fsPath}`);
 		}
-	});
+	}));
 
 	// Register tree data providers
 	const universeExplorerProvider = new UniverseExplorerProvider(dotStructureEventEmitter);
@@ -92,6 +94,11 @@ function activate(context) {
 
 	vscode.window.registerTreeDataProvider('mia.universeExplorer', universeExplorerProvider);
 	vscode.window.registerTreeDataProvider('mia.beatTimeline', beatTimelineProvider);
+
+	const chartExplorerProvider = new ChartExplorerProvider();
+	const sessionExplorerProvider = new SessionExplorerProvider();
+	vscode.window.registerTreeDataProvider('mia.chartExplorer', chartExplorerProvider);
+	vscode.window.registerTreeDataProvider('mia.sessionExplorer', sessionExplorerProvider);
 
 	// Register commands
 	context.subscriptions.push(
@@ -131,7 +138,7 @@ function activate(context) {
 	statusBar.show();
 	context.subscriptions.push(statusBar);
 
-	connectionStateEmitter.event((state) => {
+	context.subscriptions.push(connectionStateEmitter.event((state) => {
 		switch (state) {
 			case 'connected':
 				statusBar.text = '$(circle-filled) Mia';
@@ -149,7 +156,7 @@ function activate(context) {
 				// allow-any-unicode-next-line
 				statusBar.tooltip = 'Mia Three Universe — disconnected';
 		}
-	});
+	}));
 
 	getLog('server').info('Mia Three Universe extension activated');
 	if (serverUrl) {
@@ -194,6 +201,9 @@ function activate(context) {
 function deactivate() {
 	if (wsClient) {
 		wsClient.disconnect();
+	}
+	if (mcpClient) {
+		mcpClient.stopPeriodicRefresh();
 	}
 	for (const channel of outputChannels.values()) {
 		channel.dispose();
@@ -251,11 +261,17 @@ async function analyzeFileByUri(uri) {
 
 	try {
 		const result = await httpClient.analyzeThreeUniverse(uri, content);
-		getLog('engineer').info(`Analysis: ${result.engineer.summary}`);
-		getLog('ceremony').info(`Analysis: ${result.ceremony.summary}`);
-		getLog('story').info(`Analysis: ${result.story.summary}`);
+		if (result.engineer) {
+			getLog('engineer').info(`Analysis: ${result.engineer.summary}`);
+		}
+		if (result.ceremony) {
+			getLog('ceremony').info(`Analysis: ${result.ceremony.summary}`);
+		}
+		if (result.story) {
+			getLog('story').info(`Analysis: ${result.story.summary}`);
+		}
 		// allow-any-unicode-next-line
-		vscode.window.showInformationMessage(`Analysis complete — significance: ${result.overallSignificance}/5`);
+		vscode.window.showInformationMessage(`Analysis complete — significance: ${result.overallSignificance ?? 'N/A'}/5`);
 		return result;
 	} catch (err) {
 		getLog('server').error(`Analysis failed: ${err.message}`);
@@ -305,21 +321,26 @@ async function saveChartLocally(chartData) {
 		return;
 	}
 
-	const stcDir = vscode.Uri.joinPath(folders[0].uri, '.stc', 'charts');
-	const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-	const chart = {
-		id,
-		...chartData,
-		actionSteps: [],
-		created: new Date().toISOString(),
-		modified: new Date().toISOString(),
-	};
+	try {
+		const stcDir = vscode.Uri.joinPath(folders[0].uri, '.stc', 'charts');
+		const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+		const chart = {
+			id,
+			...chartData,
+			actionSteps: [],
+			created: new Date().toISOString(),
+			modified: new Date().toISOString(),
+		};
 
-	const fileUri = vscode.Uri.joinPath(stcDir, `${id}.json`);
-	await vscode.workspace.fs.createDirectory(stcDir);
-	const content = Buffer.from(JSON.stringify(chart, null, 2));
-	await vscode.workspace.fs.writeFile(fileUri, content);
-	vscode.window.showInformationMessage(`Chart saved locally: ${chartData.title}`);
+		const fileUri = vscode.Uri.joinPath(stcDir, `${id}.json`);
+		await vscode.workspace.fs.createDirectory(stcDir);
+		const content = new TextEncoder().encode(JSON.stringify(chart, null, 2));
+		await vscode.workspace.fs.writeFile(fileUri, content);
+		vscode.window.showInformationMessage(`Chart saved locally: ${chartData.title}`);
+	} catch (err) {
+		getLog('stc').error(`Failed to save chart locally: ${err.message}`);
+		vscode.window.showErrorMessage(`Failed to save chart: ${err.message}`);
+	}
 }
 
 async function createBeat() {
@@ -544,7 +565,6 @@ class UniverseExplorerProvider {
 		}
 
 		// Generic listing for other dot-structures
-		const { scanDotStructureDir } = require('./dotStructures');
 		const meta = DOT_STRUCTURES[dirName];
 		if (!meta) { return []; }
 
@@ -614,6 +634,116 @@ class BeatTimelineProvider {
 		}
 		return [];
 	}
+}
+
+class ChartExplorerProvider {
+	constructor() {
+		this._onDidChangeTreeData = new vscode.EventEmitter();
+		this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+	}
+
+	refresh() {
+		this._onDidChangeTreeData.fire();
+	}
+
+	getTreeItem(element) {
+		return element;
+	}
+
+	async getChildren(element) {
+		if (!element) {
+			const folders = vscode.workspace.workspaceFolders;
+			if (!folders || folders.length === 0) {
+				return [new vscode.TreeItem('No workspace folder open', vscode.TreeItemCollapsibleState.None)];
+			}
+
+			try {
+				const charts = await getCoaiaCharts(folders[0].uri);
+				if (charts.length === 0) {
+					return [new vscode.TreeItem('No charts found', vscode.TreeItemCollapsibleState.None)];
+				}
+				return charts.map(c => {
+					const item = new vscode.TreeItem(c.name, vscode.TreeItemCollapsibleState.None);
+					item.description = `${c.entityCount} entities`;
+					item.tooltip = c.relativePath;
+					item.command = { command: 'vscode.open', title: 'Open', arguments: [c.uri] };
+					item.contextValue = 'coaiaChart';
+					return item;
+				});
+			} catch {
+				return [new vscode.TreeItem('Error loading charts', vscode.TreeItemCollapsibleState.None)];
+			}
+		}
+		return [];
+	}
+}
+
+class SessionExplorerProvider {
+	constructor() {
+		this._onDidChangeTreeData = new vscode.EventEmitter();
+		this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+	}
+
+	refresh() {
+		this._onDidChangeTreeData.fire();
+	}
+
+	getTreeItem(element) {
+		return element;
+	}
+
+	async getChildren(element) {
+		if (!element) {
+			const folders = vscode.workspace.workspaceFolders;
+			if (!folders || folders.length === 0) {
+				return [new vscode.TreeItem('No workspace folder open', vscode.TreeItemCollapsibleState.None)];
+			}
+
+			try {
+				const sessions = await scanDotStructureDir(folders[0].uri, '.mino', '**/*.{json,md}');
+				if (sessions.length === 0) {
+					return [new vscode.TreeItem('No sessions found', vscode.TreeItemCollapsibleState.None)];
+				}
+				return sessions.map(s => {
+					const item = new vscode.TreeItem(s.name, vscode.TreeItemCollapsibleState.None);
+					item.tooltip = s.relativePath;
+					item.command = { command: 'vscode.open', title: 'Open', arguments: [s.uri] };
+					item.contextValue = 'minoSession';
+					return item;
+				});
+			} catch {
+				return [new vscode.TreeItem('Error loading sessions', vscode.TreeItemCollapsibleState.None)];
+			}
+		}
+		return [];
+	}
+}
+
+// allow-any-unicode-next-line
+// --- Disabled API Stub -------------------------------------------------------
+
+/**
+ * Returns a no-op API object when the extension is disabled.
+ * Prevents dependent extensions from crashing on undefined API.
+ */
+function createDisabledApi() {
+	const noop = { dispose() {} };
+	return {
+		getServerUrl: () => '',
+		isConnected: () => false,
+		getConnectionState: () => 'disabled',
+		analyzeFile: () => Promise.resolve(null),
+		onNarrativeEvent: () => noop,
+		onConnectionStateChanged: () => noop,
+		getOutputChannel: (universe) => getLog(universe),
+		getHttpClient: () => null,
+		getMCPClient: () => null,
+		getPdeDecompositions: () => Promise.resolve([]),
+		getCoaiaCharts: () => Promise.resolve([]),
+		getDotStructures: () => Promise.resolve([]),
+		onDotStructureChanged: () => noop,
+		getMedicineWheelDirection: (filePath) => getMedicineWheelDirection(filePath),
+	};
 }
 
 module.exports = { activate, deactivate };

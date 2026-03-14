@@ -175,6 +175,8 @@
 		"mia.stc-charts",
 		"mia.story-monitor",
 		"mia.agent-panel",
-		"mia.chat-participant"
+		"mia.chat-participant",
+		"mia.pde-stc-bridge",
+		"mia.editor-intelligence"
 	]
 }

@@ -2,11 +2,22 @@
 	"name": "story-monitor",
 	"displayName": "Mia Story Monitor",
 	"description": "Live narrative event dashboard for Mia Code",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"publisher": "mia",
 	"license": "MIT",
 	"engines": { "vscode": "^1.96.0" },
-	"activationEvents": ["onView:mia.sessionExplorer", "onCommand:mia.showDashboard", "workspaceContains:**/.pde/*.json", "workspaceContains:**/.coaia/**/*.jsonl"],
+	"activationEvents": [
+		"onView:mia.sessionExplorer",
+		"onCommand:mia.storyMonitor.open",
+		"onCommand:mia.storyMonitor.toggleAmbient",
+		"onCommand:mia.storyMonitor.logBeat",
+		"onCommand:mia.storyMonitor.setIntent",
+		"onCommand:mia.storyMonitor.endSession",
+		"onCommand:mia.storyMonitor.exportSession",
+		"onCommand:mia.storyMonitor.setPhase",
+		"workspaceContains:**/.pde/*.json",
+		"workspaceContains:**/.coaia/**/*.jsonl"
+	],
 	"main": "./src/extension.js",
 	"extensionDependencies": ["mia.three-universe"],
 	"contributes": {
@@ -40,6 +51,11 @@
 				"command": "mia.storyMonitor.exportSession",
 				"title": "Mia: Export Session as Narrative",
 				"icon": "$(export)"
+			},
+			{
+				"command": "mia.storyMonitor.setPhase",
+				"title": "Mia: Set Session Phase",
+				"icon": "$(symbol-event)"
 			}
 		],
 		"menus": {

@@ -30,8 +30,9 @@ let desiredOutcomeGutterType = null;
 let currentRealityGutterType = null;
 let structuralTensionGutterType = null;
 
-// PDE/COAIA CodeLens providers
-let pdeCodeLensProvider = null;
+// PDE/COAIA CodeLens providers (3 separate per spec)
+let pdeMdCodeLensProvider = null;
+let pdeJsonCodeLensProvider = null;
 let coaiaCodeLensProvider = null;
 
 // PDE/COAIA diagnostics collection
@@ -117,17 +118,27 @@ function activate(context) {
 	);
 
 // allow-any-unicode-next-line
-	// ─── PDE CodeLens Provider ─────────────────────────────────
-	pdeCodeLensProvider = new PdeCodeLensProvider();
+	// ─── PDE Markdown CodeLens Provider ───────────────────────
+	pdeMdCodeLensProvider = new PdeMdCodeLensProvider();
 	context.subscriptions.push(
 		vscode.languages.registerCodeLensProvider(
-			{ scheme: 'file', pattern: '**/.pde/*.{json,md}' },
-			pdeCodeLensProvider
+			{ scheme: 'file', pattern: '**/.pde/**/*.md' },
+			pdeMdCodeLensProvider
 		)
 	);
 
 // allow-any-unicode-next-line
-	// ─── COAIA CodeLens Provider ───────────────────────────────
+	// ─── PDE JSON CodeLens Provider ───────────────────────────
+	pdeJsonCodeLensProvider = new PdeJsonCodeLensProvider();
+	context.subscriptions.push(
+		vscode.languages.registerCodeLensProvider(
+			{ scheme: 'file', pattern: '**/.pde/**/*.json' },
+			pdeJsonCodeLensProvider
+		)
+	);
+
+// allow-any-unicode-next-line
+	// ─── COAIA JSONL CodeLens Provider ────────────────────────
 	coaiaCodeLensProvider = new CoaiaCodeLensProvider();
 	context.subscriptions.push(
 		vscode.languages.registerCodeLensProvider(
@@ -192,7 +203,8 @@ function activate(context) {
 			const path = doc.uri.fsPath;
 			if (path.includes('.pde/') || path.includes('.coaia/')) {
 				updatePdeDiagnostics(doc);
-				if (pdeCodeLensProvider) { pdeCodeLensProvider.refresh(); }
+				if (pdeMdCodeLensProvider) { pdeMdCodeLensProvider.refresh(); }
+				if (pdeJsonCodeLensProvider) { pdeJsonCodeLensProvider.refresh(); }
 				if (coaiaCodeLensProvider) { coaiaCodeLensProvider.refresh(); }
 			}
 			// Refresh spec.md decorations on save
@@ -758,20 +770,20 @@ function updateDiagnostics(document, result) {
 }
 
 // allow-any-unicode-next-line
-// ─── PDE CodeLens Provider ──────────────────────────────────────
+// ─── PDE Markdown CodeLens Provider ─────────────────────────────
 
 const DIRECTION_HEADERS = {
 // allow-any-unicode-next-line
-	east:  { pattern: /(?:^|\n)\s*#+\s*.*(?:EAST|East|🌅|Waabinong|Vision|Inquiry)/i, icon: '🌅', label: 'East — Vision' },
+	east:  { pattern: /^\s*#+\s*.*(?:EAST|🌅|Waabinong|Vision|Inquiry)/i, icon: '🌅', label: 'East — Vision' },
 // allow-any-unicode-next-line
-	south: { pattern: /(?:^|\n)\s*#+\s*.*(?:SOUTH|South|🔥|Zhaawanong|Growth|Analysis)/i, icon: '🔥', label: 'South — Growth' },
+	south: { pattern: /^\s*#+\s*.*(?:SOUTH|🔥|Zhaawanong|Growth|Analysis)/i, icon: '🔥', label: 'South — Growth' },
 // allow-any-unicode-next-line
-	west:  { pattern: /(?:^|\n)\s*#+\s*.*(?:WEST|West|🌊|Epangishmok|Reflection|Validation)/i, icon: '🌊', label: 'West — Reflection' },
+	west:  { pattern: /^\s*#+\s*.*(?:WEST|🌊|Epangishmok|Reflection|Validation)/i, icon: '🌊', label: 'West — Reflection' },
 // allow-any-unicode-next-line
-	north: { pattern: /(?:^|\n)\s*#+\s*.*(?:NORTH|North|❄️|Kiiwedinong|Wisdom|Action)/i, icon: '❄️', label: 'North — Wisdom' },
+	north: { pattern: /^\s*#+\s*.*(?:NORTH|❄️|Kiiwedinong|Wisdom|Action)/i, icon: '❄️', label: 'North — Wisdom' },
 };
 
-class PdeCodeLensProvider {
+class PdeMdCodeLensProvider {
 	constructor() {
 		this._onDidChangeCodeLenses = new vscode.EventEmitter();
 		this.onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
@@ -780,40 +792,80 @@ class PdeCodeLensProvider {
 	refresh() { this._onDidChangeCodeLenses.fire(); }
 
 	provideCodeLenses(document) {
-		const filePath = document.uri.fsPath;
-		const isPde = filePath.includes('.pde/') || filePath.includes('.pde\\');
-		if (!isPde) { return []; }
+		try {
+			const filePath = document.uri.fsPath;
+			if (!filePath.endsWith('.md')) { return []; }
+			if (!filePath.includes('.pde/') && !filePath.includes('.pde\\')) { return []; }
 
-		const lenses = [];
-		const text = document.getText();
-		const lines = text.split('\n');
-		const isJson = filePath.endsWith('.json');
-		const isMd = filePath.endsWith('.md');
+			const lenses = [];
+			const lines = document.getText().split('\n');
 
-		if (isJson) {
-			return this._provideJsonLenses(document, text, lines);
+			for (const [dir, info] of Object.entries(DIRECTION_HEADERS)) {
+				for (let i = 0; i < lines.length; i++) {
+					if (info.pattern.test(lines[i])) {
+						// Count items under this header until next header or EOF
+						let itemCount = 0;
+						for (let j = i + 1; j < lines.length; j++) {
+							if (/^\s*#+\s/.test(lines[j])) { break; }
+							if (/^\s*[-*]\s/.test(lines[j]) || /^\s*\d+\.\s/.test(lines[j])) { itemCount++; }
+						}
+
+						const range = new vscode.Range(i, 0, i, 0);
+						lenses.push(new vscode.CodeLens(range, {
+							title: `${info.icon} ${info.label}: ${itemCount} items`,
+							command: '',
+						}));
+					}
+				}
+			}
+
+			return lenses;
+		} catch {
+			return [];
 		}
+	}
+}
 
-		if (isMd) {
-			return this._provideMdLenses(document, text, lines);
-		}
+// allow-any-unicode-next-line
+// ─── PDE JSON CodeLens Provider ─────────────────────────────────
 
-		return lenses;
+class PdeJsonCodeLensProvider {
+	constructor() {
+		this._onDidChangeCodeLenses = new vscode.EventEmitter();
+		this.onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
 	}
 
-	_provideJsonLenses(document, text, lines) {
-		const lenses = [];
+	refresh() { this._onDidChangeCodeLenses.fire(); }
 
+	provideCodeLenses(document) {
 		try {
+			const filePath = document.uri.fsPath;
+			if (!filePath.endsWith('.json')) { return []; }
+			if (!filePath.includes('.pde/') && !filePath.includes('.pde\\')) { return []; }
+
+			const lenses = [];
+			const text = document.getText();
 			const pdeData = JSON.parse(text);
 			const result = pdeData.result || pdeData;
 
-			// Top-of-file summary
 			const topRange = new vscode.Range(0, 0, 0, 0);
-			const primaryIntent = result.primaryIntent || result.primary_intent || 'PDE Decomposition';
-			const confidence = result.confidence || 0;
-			const actionCount = (result.actions || result.explicitActions || []).length;
-			const implicitCount = (result.implicitIntents || result.implicit_intents || []).length;
+
+			// Extract primary intent — support both real format and legacy
+			let primaryIntent = '';
+			let confidence = 0;
+			if (result.primary && typeof result.primary === 'object') {
+				primaryIntent = [result.primary.action, result.primary.target].filter(Boolean).join(': ');
+				confidence = result.primary.confidence || 0;
+			} else {
+				primaryIntent = result.primaryIntent || result.primary_intent || 'PDE Decomposition';
+				confidence = result.confidence || 0;
+			}
+
+			// Extract actions — support secondary array and legacy
+			const actions = result.secondary || result.actions || result.explicitActions || [];
+			const actionCount = actions.length;
+			const implicitCount = actions.filter(a => a.implicit === true).length ||
+				(result.implicitIntents || result.implicit_intents || []).length;
 
 // allow-any-unicode-next-line
 			lenses.push(new vscode.CodeLens(topRange, {
@@ -831,9 +883,8 @@ class PdeCodeLensProvider {
 
 			// Direction-based counts from actions
 			const dirCounts = { east: 0, south: 0, west: 0, north: 0 };
-			const actions = result.actions || result.explicitActions || [];
 			for (const action of actions) {
-				const dir = action.direction || inferDirection(action.description || action.title || '');
+				const dir = action.direction || inferDirection(action.target || action.description || action.title || '');
 				if (dir && dirCounts[dir] !== undefined) { dirCounts[dir]++; }
 			}
 
@@ -848,35 +899,11 @@ class PdeCodeLensProvider {
 					command: '',
 				}));
 			}
-		} catch { /* malformed PDE JSON */ }
 
-		return lenses;
-	}
-
-	_provideMdLenses(document, text, lines) {
-		const lenses = [];
-
-		// Find direction headers and show item counts
-		for (const [dir, info] of Object.entries(DIRECTION_HEADERS)) {
-			for (let i = 0; i < lines.length; i++) {
-				if (info.pattern.test(lines[i])) {
-					// Count items under this header until next header
-					let itemCount = 0;
-					for (let j = i + 1; j < lines.length; j++) {
-						if (/^\s*#+\s/.test(lines[j])) { break; }
-						if (/^\s*[-*]\s/.test(lines[j]) || /^\s*\d+\.\s/.test(lines[j])) { itemCount++; }
-					}
-
-					const range = new vscode.Range(i, 0, i, 0);
-					lenses.push(new vscode.CodeLens(range, {
-						title: `${info.icon} ${info.label}: ${itemCount} items`,
-						command: '',
-					}));
-				}
-			}
+			return lenses;
+		} catch {
+			return [];
 		}
-
-		return lenses;
 	}
 }
 
@@ -892,71 +919,100 @@ class CoaiaCodeLensProvider {
 	refresh() { this._onDidChangeCodeLenses.fire(); }
 
 	provideCodeLenses(document) {
-		const filePath = document.uri.fsPath;
-		const isCoaia = (filePath.includes('.coaia/') || filePath.includes('.coaia\\')) && filePath.endsWith('.jsonl');
-		if (!isCoaia) { return []; }
+		try {
+			const filePath = document.uri.fsPath;
+			const isCoaia = (filePath.includes('.coaia/') || filePath.includes('.coaia\\')) && filePath.endsWith('.jsonl');
+			if (!isCoaia) { return []; }
 
-		const lenses = [];
-		const text = document.getText();
-		const lines = text.split('\n').filter(l => l.trim());
+			const lenses = [];
+			const text = document.getText();
+			const lines = text.split('\n').filter(l => l.trim());
 
-		const entityCounts = {};
-		let chartName = '';
-		let desiredOutcome = '';
-		let actionTotal = 0;
-		let actionComplete = 0;
+			const entityTypeCounts = {};
+			const topLevelTypeCounts = { entity: 0, relation: 0 };
+			let chartName = '';
+			let desiredOutcome = '';
+			let actionTotal = 0;
+			let actionComplete = 0;
 
-		for (const line of lines) {
-			try {
-				const obj = JSON.parse(line);
-				const type = obj.type || obj.entityType || 'unknown';
-				entityCounts[type] = (entityCounts[type] || 0) + 1;
+			for (const line of lines) {
+				try {
+					const obj = JSON.parse(line);
+					const topType = obj.type || 'unknown';
+					topLevelTypeCounts[topType] = (topLevelTypeCounts[topType] || 0) + 1;
 
-				if (type === 'chart' || type === 'structural_tension_chart') {
-					chartName = obj.name || obj.title || '';
-					desiredOutcome = obj.desiredOutcome || obj.desired_outcome || '';
-				}
+					// For entities, count by entityType
+					if (topType === 'entity') {
+						const eType = obj.entityType || 'unknown';
+						entityTypeCounts[eType] = (entityTypeCounts[eType] || 0) + 1;
 
-				if (type === 'action_step') {
-					actionTotal++;
-					if (obj.status === 'complete' || obj.completed) { actionComplete++; }
-				}
-			} catch { /* skip malformed lines */ }
-		}
+						if (eType === 'structural_tension_chart' || eType === 'chart') {
+							chartName = obj.name || obj.title || '';
+						}
 
-		const topRange = new vscode.Range(0, 0, 0, 0);
+						if (eType === 'desired_outcome') {
+							const obs = obj.observations || [];
+							desiredOutcome = (typeof obs[0] === 'string') ? obs[0] : (obj.name || '');
+						}
 
-		// Chart summary
-		if (chartName || desiredOutcome) {
+						if (eType === 'action_step') {
+							actionTotal++;
+							const status = (obj.metadata && obj.metadata.status) || obj.status || '';
+							if (status === 'complete' || status === 'done' || obj.completed) {
+								actionComplete++;
+							}
+						}
+					}
+
+					// Legacy flat format fallback
+					if (topType === 'chart' || topType === 'structural_tension_chart') {
+						chartName = chartName || obj.name || obj.title || '';
+						desiredOutcome = desiredOutcome || obj.desiredOutcome || obj.desired_outcome || '';
+					}
+					if (topType === 'action_step') {
+						actionTotal++;
+						if (obj.status === 'complete' || obj.completed) { actionComplete++; }
+					}
+				} catch { /* skip malformed lines */ }
+			}
+
+			const topRange = new vscode.Range(0, 0, 0, 0);
+
+			// Chart summary
+			if (chartName || desiredOutcome) {
 // allow-any-unicode-next-line
+				lenses.push(new vscode.CodeLens(topRange, {
+					// allow-any-unicode-next-line
+					title: `📐 STC: ${(chartName || desiredOutcome).slice(0, 60)}`,
+					command: '',
+				}));
+			}
+
+			// Entity type counts (more useful than top-level type counts)
+			const countStr = Object.entries(entityTypeCounts)
+				.map(([t, c]) => `${t}: ${c}`)
+				.join(', ');
+			const relationCount = topLevelTypeCounts.relation || 0;
+
 			lenses.push(new vscode.CodeLens(topRange, {
-				// allow-any-unicode-next-line
-				title: `📐 STC: ${(chartName || desiredOutcome).slice(0, 60)}`,
+				title: `Entities: ${countStr}${relationCount > 0 ? ` | ${relationCount} relations` : ''} (${lines.length} total)`,
 				command: '',
 			}));
-		}
 
-		// Entity counts
-		const countStr = Object.entries(entityCounts)
-			.map(([t, c]) => `${t}: ${c}`)
-			.join(', ');
-
-		lenses.push(new vscode.CodeLens(topRange, {
-			title: `Entities: ${countStr} (${lines.length} total)`,
-			command: '',
-		}));
-
-		// Action progress
-		if (actionTotal > 0) {
-			const pct = Math.round((actionComplete / actionTotal) * 100);
+			// Action progress
+			if (actionTotal > 0) {
+				const pct = Math.round((actionComplete / actionTotal) * 100);
 // allow-any-unicode-next-line
-			lenses.push(new vscode.CodeLens(topRange, {
-				title: `Progress: ${actionComplete}/${actionTotal} actions (${pct}%)`,
-				command: '',
-			}));
-		}
+				lenses.push(new vscode.CodeLens(topRange, {
+					title: `Progress: ${actionComplete}/${actionTotal} actions (${pct}%)`,
+					command: '',
+				}));
+			}
 
-		return lenses;
+			return lenses;
+		} catch {
+			return [];
+		}
 	}
 }
 
@@ -977,9 +1033,15 @@ function updatePdeDiagnostics(document) {
 		const pdeData = JSON.parse(text);
 		const result = pdeData.result || pdeData;
 
-		// Check confidence score
-		const confidence = result.confidence || 0;
-		if (confidence < 0.5 && confidence > 0) {
+		// Extract confidence — support both real and legacy format
+		let confidence = 0;
+		if (result.primary && typeof result.primary === 'object') {
+			confidence = result.primary.confidence || 0;
+		} else {
+			confidence = result.confidence || 0;
+		}
+
+		if (confidence > 0 && confidence < 0.5) {
 			const range = findJsonKeyRange(text, 'confidence') || new vscode.Range(0, 0, 0, 0);
 			diagnostics.push(new vscode.Diagnostic(
 				range,
@@ -989,22 +1051,36 @@ function updatePdeDiagnostics(document) {
 			));
 		}
 
-		// Check for ambiguity flags
-		const actions = result.actions || result.explicitActions || [];
+		// Check actions — support secondary array and legacy
+		const actions = result.secondary || result.actions || result.explicitActions || [];
 		for (let i = 0; i < actions.length; i++) {
 			const action = actions[i];
+
+			// Check for ambiguity flags
 			if (action.ambiguous || action.ambiguity) {
+				const desc = action.target || action.description || action.title || '';
 				const range = findJsonKeyRange(text, 'ambiguous', i) || new vscode.Range(0, 0, 0, 0);
 				diagnostics.push(new vscode.Diagnostic(
 					range,
 // allow-any-unicode-next-line
-					`ℹ️ Ambiguous action: "${(action.description || action.title || '').slice(0, 60)}". Consider clarifying intent.`,
+					`ℹ️ Ambiguous action: "${desc.slice(0, 60)}". Consider clarifying intent.`,
 					vscode.DiagnosticSeverity.Information
+				));
+			}
+
+			// Check for low-confidence implicit intents
+			if (action.implicit && action.confidence > 0 && action.confidence < 0.5) {
+				const desc = action.target || action.description || action.title || '';
+				diagnostics.push(new vscode.Diagnostic(
+					new vscode.Range(0, 0, 0, 0),
+// allow-any-unicode-next-line
+					`⚠️ Low-confidence implicit intent: "${desc.slice(0, 60)}". May need explicit confirmation.`,
+					vscode.DiagnosticSeverity.Warning
 				));
 			}
 		}
 
-		// Check implicit intents
+		// Legacy: check separate implicitIntents array
 		const implicitIntents = result.implicitIntents || result.implicit_intents || [];
 		for (const intent of implicitIntents) {
 			const desc = typeof intent === 'string' ? intent : (intent.description || intent.text || '');
