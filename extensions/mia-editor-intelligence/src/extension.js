@@ -25,6 +25,18 @@ let storyGutterType = null;
 let significanceAnnotationType = null;
 let blockHighlightType = null;
 
+// Spec.md decoration types for Structural Tension
+let desiredOutcomeGutterType = null;
+let currentRealityGutterType = null;
+let structuralTensionGutterType = null;
+
+// PDE/COAIA CodeLens providers
+let pdeCodeLensProvider = null;
+let coaiaCodeLensProvider = null;
+
+// PDE/COAIA diagnostics collection
+let pdeDiagnosticCollection = null;
+
 function activate(context) {
 	const coreExt = vscode.extensions.getExtension('mia.three-universe');
 	if (coreExt) {
@@ -69,11 +81,65 @@ function activate(context) {
 	});
 
 // allow-any-unicode-next-line
+	// ─── Spec.md Structural Tension Decorations ────────────────
+	desiredOutcomeGutterType = vscode.window.createTextEditorDecorationType({
+		gutterIconPath: makeGutterSvgUri('#4ADE80'),
+		gutterIconSize: '70%',
+		overviewRulerColor: '#4ADE8044',
+		overviewRulerLane: vscode.OverviewRulerLane.Left,
+		isWholeLine: true,
+		backgroundColor: '#4ADE8008',
+	});
+
+	currentRealityGutterType = vscode.window.createTextEditorDecorationType({
+		gutterIconPath: makeGutterSvgUri('#F59E0B'),
+		gutterIconSize: '70%',
+		overviewRulerColor: '#F59E0B44',
+		overviewRulerLane: vscode.OverviewRulerLane.Center,
+		isWholeLine: true,
+		backgroundColor: '#F59E0B08',
+	});
+
+	structuralTensionGutterType = vscode.window.createTextEditorDecorationType({
+		gutterIconPath: makeGutterSvgUri('#A78BFA'),
+		gutterIconSize: '70%',
+		overviewRulerColor: '#A78BFA44',
+		overviewRulerLane: vscode.OverviewRulerLane.Right,
+		isWholeLine: true,
+		backgroundColor: '#A78BFA08',
+	});
+
+// allow-any-unicode-next-line
 	// ─── CodeLens Provider ──────────────────────────────────────
 	codeLensProvider = new NarrativeCodeLensProvider();
 	context.subscriptions.push(
 		vscode.languages.registerCodeLensProvider({ scheme: 'file' }, codeLensProvider)
 	);
+
+// allow-any-unicode-next-line
+	// ─── PDE CodeLens Provider ─────────────────────────────────
+	pdeCodeLensProvider = new PdeCodeLensProvider();
+	context.subscriptions.push(
+		vscode.languages.registerCodeLensProvider(
+			{ scheme: 'file', pattern: '**/.pde/*.{json,md}' },
+			pdeCodeLensProvider
+		)
+	);
+
+// allow-any-unicode-next-line
+	// ─── COAIA CodeLens Provider ───────────────────────────────
+	coaiaCodeLensProvider = new CoaiaCodeLensProvider();
+	context.subscriptions.push(
+		vscode.languages.registerCodeLensProvider(
+			{ scheme: 'file', pattern: '**/.coaia/**/*.jsonl' },
+			coaiaCodeLensProvider
+		)
+	);
+
+// allow-any-unicode-next-line
+	// ─── PDE Diagnostics ───────────────────────────────────────
+	pdeDiagnosticCollection = vscode.languages.createDiagnosticCollection('mia-pde');
+	context.subscriptions.push(pdeDiagnosticCollection);
 
 // allow-any-unicode-next-line
 	// ─── Hover Provider ─────────────────────────────────────────
@@ -111,7 +177,31 @@ function activate(context) {
 	// ─── Apply decorations on editor change ─────────────────────
 	context.subscriptions.push(
 		vscode.window.onDidChangeActiveTextEditor((editor) => {
-			if (editor) { applyDecorations(editor); }
+			if (editor) {
+				applyDecorations(editor);
+				applySpecDecorations(editor);
+				updatePdeDiagnostics(editor.document);
+			}
+		})
+	);
+
+// allow-any-unicode-next-line
+	// ─── PDE/COAIA file save handler ───────────────────────────
+	context.subscriptions.push(
+		vscode.workspace.onDidSaveTextDocument((doc) => {
+			const path = doc.uri.fsPath;
+			if (path.includes('.pde/') || path.includes('.coaia/')) {
+				updatePdeDiagnostics(doc);
+				if (pdeCodeLensProvider) { pdeCodeLensProvider.refresh(); }
+				if (coaiaCodeLensProvider) { coaiaCodeLensProvider.refresh(); }
+			}
+			// Refresh spec.md decorations on save
+			if (path.endsWith('.spec.md')) {
+				const editor = vscode.window.activeTextEditor;
+				if (editor && editor.document.uri.toString() === doc.uri.toString()) {
+					applySpecDecorations(editor);
+				}
+			}
 		})
 	);
 
@@ -198,7 +288,11 @@ function activate(context) {
 
 	// Apply decorations for already-open editor
 	const activeEditor = vscode.window.activeTextEditor;
-	if (activeEditor) { applyDecorations(activeEditor); }
+	if (activeEditor) {
+		applyDecorations(activeEditor);
+		applySpecDecorations(activeEditor);
+		updatePdeDiagnostics(activeEditor.document);
+	}
 }
 
 function deactivate() {}
@@ -661,6 +755,368 @@ function updateDiagnostics(document, result) {
 	}
 
 	diagnosticCollection.set(document.uri, diagnostics);
+}
+
+// allow-any-unicode-next-line
+// ─── PDE CodeLens Provider ──────────────────────────────────────
+
+const DIRECTION_HEADERS = {
+// allow-any-unicode-next-line
+	east:  { pattern: /(?:^|\n)\s*#+\s*.*(?:EAST|East|🌅|Waabinong|Vision|Inquiry)/i, icon: '🌅', label: 'East — Vision' },
+// allow-any-unicode-next-line
+	south: { pattern: /(?:^|\n)\s*#+\s*.*(?:SOUTH|South|🔥|Zhaawanong|Growth|Analysis)/i, icon: '🔥', label: 'South — Growth' },
+// allow-any-unicode-next-line
+	west:  { pattern: /(?:^|\n)\s*#+\s*.*(?:WEST|West|🌊|Epangishmok|Reflection|Validation)/i, icon: '🌊', label: 'West — Reflection' },
+// allow-any-unicode-next-line
+	north: { pattern: /(?:^|\n)\s*#+\s*.*(?:NORTH|North|❄️|Kiiwedinong|Wisdom|Action)/i, icon: '❄️', label: 'North — Wisdom' },
+};
+
+class PdeCodeLensProvider {
+	constructor() {
+		this._onDidChangeCodeLenses = new vscode.EventEmitter();
+		this.onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
+	}
+
+	refresh() { this._onDidChangeCodeLenses.fire(); }
+
+	provideCodeLenses(document) {
+		const filePath = document.uri.fsPath;
+		const isPde = filePath.includes('.pde/') || filePath.includes('.pde\\');
+		if (!isPde) { return []; }
+
+		const lenses = [];
+		const text = document.getText();
+		const lines = text.split('\n');
+		const isJson = filePath.endsWith('.json');
+		const isMd = filePath.endsWith('.md');
+
+		if (isJson) {
+			return this._provideJsonLenses(document, text, lines);
+		}
+
+		if (isMd) {
+			return this._provideMdLenses(document, text, lines);
+		}
+
+		return lenses;
+	}
+
+	_provideJsonLenses(document, text, lines) {
+		const lenses = [];
+
+		try {
+			const pdeData = JSON.parse(text);
+			const result = pdeData.result || pdeData;
+
+			// Top-of-file summary
+			const topRange = new vscode.Range(0, 0, 0, 0);
+			const primaryIntent = result.primaryIntent || result.primary_intent || 'PDE Decomposition';
+			const confidence = result.confidence || 0;
+			const actionCount = (result.actions || result.explicitActions || []).length;
+			const implicitCount = (result.implicitIntents || result.implicit_intents || []).length;
+
+// allow-any-unicode-next-line
+			lenses.push(new vscode.CodeLens(topRange, {
+				// allow-any-unicode-next-line
+				title: `🌅 PDE: ${primaryIntent.slice(0, 60)}`,
+				command: '',
+			}));
+
+// allow-any-unicode-next-line
+			lenses.push(new vscode.CodeLens(topRange, {
+				// allow-any-unicode-next-line
+				title: `📐 Confidence: ${(confidence * 100).toFixed(0)}% | ${actionCount} actions | ${implicitCount} implicit`,
+				command: '',
+			}));
+
+			// Direction-based counts from actions
+			const dirCounts = { east: 0, south: 0, west: 0, north: 0 };
+			const actions = result.actions || result.explicitActions || [];
+			for (const action of actions) {
+				const dir = action.direction || inferDirection(action.description || action.title || '');
+				if (dir && dirCounts[dir] !== undefined) { dirCounts[dir]++; }
+			}
+
+			const dirSummary = Object.entries(dirCounts)
+				.filter(([, c]) => c > 0)
+				.map(([d, c]) => `${DIRECTION_HEADERS[d].icon} ${c}`)
+				.join(' ');
+
+			if (dirSummary) {
+				lenses.push(new vscode.CodeLens(topRange, {
+					title: `Directions: ${dirSummary}`,
+					command: '',
+				}));
+			}
+		} catch { /* malformed PDE JSON */ }
+
+		return lenses;
+	}
+
+	_provideMdLenses(document, text, lines) {
+		const lenses = [];
+
+		// Find direction headers and show item counts
+		for (const [dir, info] of Object.entries(DIRECTION_HEADERS)) {
+			for (let i = 0; i < lines.length; i++) {
+				if (info.pattern.test(lines[i])) {
+					// Count items under this header until next header
+					let itemCount = 0;
+					for (let j = i + 1; j < lines.length; j++) {
+						if (/^\s*#+\s/.test(lines[j])) { break; }
+						if (/^\s*[-*]\s/.test(lines[j]) || /^\s*\d+\.\s/.test(lines[j])) { itemCount++; }
+					}
+
+					const range = new vscode.Range(i, 0, i, 0);
+					lenses.push(new vscode.CodeLens(range, {
+						title: `${info.icon} ${info.label}: ${itemCount} items`,
+						command: '',
+					}));
+				}
+			}
+		}
+
+		return lenses;
+	}
+}
+
+// allow-any-unicode-next-line
+// ─── COAIA JSONL CodeLens Provider ──────────────────────────────
+
+class CoaiaCodeLensProvider {
+	constructor() {
+		this._onDidChangeCodeLenses = new vscode.EventEmitter();
+		this.onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
+	}
+
+	refresh() { this._onDidChangeCodeLenses.fire(); }
+
+	provideCodeLenses(document) {
+		const filePath = document.uri.fsPath;
+		const isCoaia = (filePath.includes('.coaia/') || filePath.includes('.coaia\\')) && filePath.endsWith('.jsonl');
+		if (!isCoaia) { return []; }
+
+		const lenses = [];
+		const text = document.getText();
+		const lines = text.split('\n').filter(l => l.trim());
+
+		const entityCounts = {};
+		let chartName = '';
+		let desiredOutcome = '';
+		let actionTotal = 0;
+		let actionComplete = 0;
+
+		for (const line of lines) {
+			try {
+				const obj = JSON.parse(line);
+				const type = obj.type || obj.entityType || 'unknown';
+				entityCounts[type] = (entityCounts[type] || 0) + 1;
+
+				if (type === 'chart' || type === 'structural_tension_chart') {
+					chartName = obj.name || obj.title || '';
+					desiredOutcome = obj.desiredOutcome || obj.desired_outcome || '';
+				}
+
+				if (type === 'action_step') {
+					actionTotal++;
+					if (obj.status === 'complete' || obj.completed) { actionComplete++; }
+				}
+			} catch { /* skip malformed lines */ }
+		}
+
+		const topRange = new vscode.Range(0, 0, 0, 0);
+
+		// Chart summary
+		if (chartName || desiredOutcome) {
+// allow-any-unicode-next-line
+			lenses.push(new vscode.CodeLens(topRange, {
+				// allow-any-unicode-next-line
+				title: `📐 STC: ${(chartName || desiredOutcome).slice(0, 60)}`,
+				command: '',
+			}));
+		}
+
+		// Entity counts
+		const countStr = Object.entries(entityCounts)
+			.map(([t, c]) => `${t}: ${c}`)
+			.join(', ');
+
+		lenses.push(new vscode.CodeLens(topRange, {
+			title: `Entities: ${countStr} (${lines.length} total)`,
+			command: '',
+		}));
+
+		// Action progress
+		if (actionTotal > 0) {
+			const pct = Math.round((actionComplete / actionTotal) * 100);
+// allow-any-unicode-next-line
+			lenses.push(new vscode.CodeLens(topRange, {
+				title: `Progress: ${actionComplete}/${actionTotal} actions (${pct}%)`,
+				command: '',
+			}));
+		}
+
+		return lenses;
+	}
+}
+
+// allow-any-unicode-next-line
+// ─── PDE Diagnostics ────────────────────────────────────────────
+
+function updatePdeDiagnostics(document) {
+	if (!pdeDiagnosticCollection) { return; }
+
+	const filePath = document.uri.fsPath;
+	const isPdeJson = (filePath.includes('.pde/') || filePath.includes('.pde\\')) && filePath.endsWith('.json');
+	if (!isPdeJson) { return; }
+
+	const diagnostics = [];
+	const text = document.getText();
+
+	try {
+		const pdeData = JSON.parse(text);
+		const result = pdeData.result || pdeData;
+
+		// Check confidence score
+		const confidence = result.confidence || 0;
+		if (confidence < 0.5 && confidence > 0) {
+			const range = findJsonKeyRange(text, 'confidence') || new vscode.Range(0, 0, 0, 0);
+			diagnostics.push(new vscode.Diagnostic(
+				range,
+// allow-any-unicode-next-line
+				`⚠️ Low confidence score: ${(confidence * 100).toFixed(0)}%. Consider re-decomposing with more specific intent.`,
+				vscode.DiagnosticSeverity.Warning
+			));
+		}
+
+		// Check for ambiguity flags
+		const actions = result.actions || result.explicitActions || [];
+		for (let i = 0; i < actions.length; i++) {
+			const action = actions[i];
+			if (action.ambiguous || action.ambiguity) {
+				const range = findJsonKeyRange(text, 'ambiguous', i) || new vscode.Range(0, 0, 0, 0);
+				diagnostics.push(new vscode.Diagnostic(
+					range,
+// allow-any-unicode-next-line
+					`ℹ️ Ambiguous action: "${(action.description || action.title || '').slice(0, 60)}". Consider clarifying intent.`,
+					vscode.DiagnosticSeverity.Information
+				));
+			}
+		}
+
+		// Check implicit intents
+		const implicitIntents = result.implicitIntents || result.implicit_intents || [];
+		for (const intent of implicitIntents) {
+			const desc = typeof intent === 'string' ? intent : (intent.description || intent.text || '');
+			const conf = typeof intent === 'object' ? (intent.confidence || 0) : 0;
+			if (conf > 0 && conf < 0.5) {
+				diagnostics.push(new vscode.Diagnostic(
+					new vscode.Range(0, 0, 0, 0),
+// allow-any-unicode-next-line
+					`⚠️ Low-confidence implicit intent: "${desc.slice(0, 60)}". May need explicit confirmation.`,
+					vscode.DiagnosticSeverity.Warning
+				));
+			}
+		}
+	// allow-any-unicode-next-line
+	} catch { /* malformed PDE JSON — no diagnostics */ }
+
+	pdeDiagnosticCollection.set(document.uri, diagnostics);
+}
+
+function findJsonKeyRange(text, key, nthOccurrence) {
+	const lines = text.split('\n');
+	let occurrence = 0;
+	const target = nthOccurrence || 0;
+
+	for (let i = 0; i < lines.length; i++) {
+		const idx = lines[i].indexOf(`"${key}"`);
+		if (idx !== -1) {
+			if (occurrence === target) {
+				return new vscode.Range(i, idx, i, lines[i].length);
+			}
+			occurrence++;
+		}
+	}
+	return null;
+}
+
+// allow-any-unicode-next-line
+// ─── Spec.md Structural Tension Decorations ─────────────────────
+
+function applySpecDecorations(editor) {
+	if (!editor) { return; }
+	const doc = editor.document;
+	const filePath = doc.uri.fsPath;
+
+	// Only apply to .spec.md files
+	if (!filePath.endsWith('.spec.md')) {
+		clearSpecDecorations(editor);
+		return;
+	}
+
+	const config = vscode.workspace.getConfiguration('mia');
+	if (!config.get('decorations.enabled', true)) {
+		clearSpecDecorations(editor);
+		return;
+	}
+
+	const text = doc.getText();
+	const lines = text.split('\n');
+
+	const desiredOutcomeRanges = [];
+	const currentRealityRanges = [];
+	const tensionRanges = [];
+
+	let currentSection = null;
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+
+		// Detect section headers
+		if (/^\s*#+\s*.*(?:Desired\s+Outcome|Vision|Goal|Target|Objective)/i.test(line)) {
+			currentSection = 'desired';
+		} else if (/^\s*#+\s*.*(?:Current\s+Reality|Present\s+State|Status|Baseline|As-Is)/i.test(line)) {
+			currentSection = 'current';
+		} else if (/^\s*#+\s*.*(?:Structural\s+Tension|Tension|Gap|Action\s+Steps|Strategy)/i.test(line)) {
+			currentSection = 'tension';
+		} else if (/^\s*#+\s/.test(line)) {
+			// Any other heading resets the section
+			currentSection = null;
+		}
+
+		// Apply decorations based on current section
+		if (currentSection === 'desired') {
+			desiredOutcomeRanges.push(new vscode.Range(i, 0, i, 0));
+		} else if (currentSection === 'current') {
+			currentRealityRanges.push(new vscode.Range(i, 0, i, 0));
+		} else if (currentSection === 'tension') {
+			tensionRanges.push(new vscode.Range(i, 0, i, 0));
+		}
+	}
+
+	editor.setDecorations(desiredOutcomeGutterType, desiredOutcomeRanges);
+	editor.setDecorations(currentRealityGutterType, currentRealityRanges);
+	editor.setDecorations(structuralTensionGutterType, tensionRanges);
+}
+
+function clearSpecDecorations(editor) {
+	if (!editor) { return; }
+	if (desiredOutcomeGutterType) { editor.setDecorations(desiredOutcomeGutterType, []); }
+	if (currentRealityGutterType) { editor.setDecorations(currentRealityGutterType, []); }
+	if (structuralTensionGutterType) { editor.setDecorations(structuralTensionGutterType, []); }
+}
+
+// allow-any-unicode-next-line
+// ─── Direction Inference ────────────────────────────────────────
+
+function inferDirection(text) {
+	const lower = text.toLowerCase();
+	if (/decompos|vision|inquir|pde|prompt|east/.test(lower)) { return 'east'; }
+	if (/search|research|analy|growth|south/.test(lower)) { return 'south'; }
+	if (/review|reflect|valid|test|west/.test(lower)) { return 'west'; }
+	if (/execut|implement|integrat|build|north/.test(lower)) { return 'north'; }
+	return null;
 }
 
 module.exports = { activate, deactivate };

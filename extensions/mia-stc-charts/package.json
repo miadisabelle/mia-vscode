@@ -45,6 +45,11 @@
 				"command": "mia.stcCharts.refresh",
 				"title": "Mia: Refresh Charts",
 				"icon": "$(refresh)"
+			},
+			{
+				"command": "mia.stcCharts.viewPdeSource",
+				"title": "Mia: View PDE Source",
+				"icon": "$(link-external)"
 			}
 		],
 		"menus": {
@@ -57,7 +62,8 @@
 				{ "command": "mia.stcCharts.export", "when": "viewItem == stcChart" },
 				{ "command": "mia.stcCharts.archive", "when": "viewItem == stcChart" },
 				{ "command": "mia.stcCharts.deleteChart", "when": "viewItem == stcChart" },
-				{ "command": "mia.stcCharts.completeStep", "when": "viewItem == actionStep" }
+				{ "command": "mia.stcCharts.completeStep", "when": "viewItem == actionStep" },
+				{ "command": "mia.stcCharts.viewPdeSource", "when": "viewItem == pdeLink" }
 			]
 		}
 	}

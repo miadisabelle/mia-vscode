@@ -6,7 +6,7 @@
 	"publisher": "mia",
 	"license": "MIT",
 	"engines": { "vscode": "^1.96.0" },
-	"activationEvents": ["onStartupFinished"],
+	"activationEvents": ["onStartupFinished", "onLanguage:json", "onLanguage:markdown", "workspaceContains:**/.pde/**", "workspaceContains:**/.coaia/**"],
 	"main": "./src/extension.js",
 	"extensionDependencies": ["mia.three-universe"],
 	"contributes": {
@@ -30,6 +30,22 @@
 				"command": "mia.editorIntelligence.toggleDecorations",
 				"title": "Mia: Toggle Editor Decorations",
 				"icon": "$(eye)"
+			}
+		],
+		"languages": [
+			{
+				"id": "pde-json",
+				"aliases": ["PDE Decomposition"],
+				"extensions": [],
+				"filenames": [],
+				"filenamePatterns": ["**/.pde/*.json"]
+			},
+			{
+				"id": "coaia-jsonl",
+				"aliases": ["COAIA Chart"],
+				"extensions": [],
+				"filenames": [],
+				"filenamePatterns": ["**/.coaia/**/*.jsonl"]
 			}
 		]
 	}

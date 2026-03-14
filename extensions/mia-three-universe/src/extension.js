@@ -7,6 +7,14 @@ const vscode = require('vscode');
 const { MiaHttpClientImpl } = require('./api/httpClient');
 const { NarrativeWebSocket } = require('./ws/narrativeWebSocket');
 const { MCPClientService } = require('./mcp/mcpClient');
+const {
+	DOT_STRUCTURES,
+	getPdeDecompositions,
+	getCoaiaCharts,
+	getDotStructures,
+	getMedicineWheelDirection,
+	createDotStructureWatchers,
+} = require('./dotStructures');
 
 /** @type {Map<string, import('vscode').LogOutputChannel>} */
 const outputChannels = new Map();
@@ -19,6 +27,9 @@ let narrativeEventEmitter;
 
 /** @type {import('vscode').EventEmitter<string>} */
 let connectionStateEmitter;
+
+/** @type {import('vscode').EventEmitter<{type: string, uri: import('vscode').Uri, dotStructure: string}>} */
+let dotStructureEventEmitter;
 
 /** @type {MiaHttpClientImpl | null} */
 let httpClient = null;
@@ -41,6 +52,7 @@ function activate(context) {
 
 	narrativeEventEmitter = new vscode.EventEmitter();
 	connectionStateEmitter = new vscode.EventEmitter();
+	dotStructureEventEmitter = new vscode.EventEmitter();
 
 	const serverUrl = config.get('serverUrl', '');
 
@@ -61,8 +73,21 @@ function activate(context) {
 	// Initialize MCP client
 	mcpClient = new MCPClientService(serverUrl, context);
 
+	// Initialize dot-structure file watchers
+	const dotWatcherDisposables = createDotStructureWatchers(dotStructureEventEmitter);
+	context.subscriptions.push(...dotWatcherDisposables);
+
+	// Log dot-structure changes to PDE/STC channels
+	dotStructureEventEmitter.event((event) => {
+		if (event.dotStructure === '.pde') {
+			getLog('pde').info(`[${event.type}] ${event.uri.fsPath}`);
+		} else if (event.dotStructure === '.coaia' || event.dotStructure === '.stc') {
+			getLog('stc').info(`[${event.type}] ${event.uri.fsPath}`);
+		}
+	});
+
 	// Register tree data providers
-	const universeExplorerProvider = new UniverseExplorerProvider();
+	const universeExplorerProvider = new UniverseExplorerProvider(dotStructureEventEmitter);
 	const beatTimelineProvider = new BeatTimelineProvider();
 
 	vscode.window.registerTreeDataProvider('mia.universeExplorer', universeExplorerProvider);
@@ -78,6 +103,8 @@ function activate(context) {
 		vscode.commands.registerCommand('mia.showDashboard', () => showDashboard()),
 		vscode.commands.registerCommand('mia.decompose', () => decomposePrompt()),
 		vscode.commands.registerCommand('mia.quickAnalysis', () => quickAnalysis()),
+		vscode.commands.registerCommand('mia.refreshDotStructures', () => universeExplorerProvider.refresh()),
+		vscode.commands.registerCommand('mia.showDotStructures', () => showDotStructuresInventory()),
 	);
 
 	// Listen for configuration changes
@@ -98,6 +125,7 @@ function activate(context) {
 	// Status bar item showing connection state
 	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
 	statusBar.text = '$(circle-slash) Mia';
+	// allow-any-unicode-next-line
 	statusBar.tooltip = 'Mia Three Universe — disconnected';
 	statusBar.command = 'mia.showPanel';
 	statusBar.show();
@@ -107,15 +135,18 @@ function activate(context) {
 		switch (state) {
 			case 'connected':
 				statusBar.text = '$(circle-filled) Mia';
+				// allow-any-unicode-next-line
 				statusBar.tooltip = 'Mia Three Universe — connected';
 				break;
 			case 'connecting':
 			case 'reconnecting':
 				statusBar.text = '$(loading~spin) Mia';
+				// allow-any-unicode-next-line
 				statusBar.tooltip = `Mia Three Universe — ${state}`;
 				break;
 			default:
 				statusBar.text = '$(circle-slash) Mia';
+				// allow-any-unicode-next-line
 				statusBar.tooltip = 'Mia Three Universe — disconnected';
 		}
 	});
@@ -138,6 +169,25 @@ function activate(context) {
 		getOutputChannel: (universe) => getLog(universe),
 		getHttpClient: () => httpClient,
 		getMCPClient: () => mcpClient,
+
+		// Dot-structure API (PDE-to-STC bridge / inter-extension communication)
+		getPdeDecompositions: (workspaceFolder) => {
+			const folderUri = workspaceFolder?.uri || vscode.workspace.workspaceFolders?.[0]?.uri;
+			if (!folderUri) { return Promise.resolve([]); }
+			return getPdeDecompositions(folderUri);
+		},
+		getCoaiaCharts: (workspaceFolder) => {
+			const folderUri = workspaceFolder?.uri || vscode.workspace.workspaceFolders?.[0]?.uri;
+			if (!folderUri) { return Promise.resolve([]); }
+			return getCoaiaCharts(folderUri);
+		},
+		getDotStructures: (workspaceFolder) => {
+			const folderUri = workspaceFolder?.uri || vscode.workspace.workspaceFolders?.[0]?.uri;
+			if (!folderUri) { return Promise.resolve([]); }
+			return getDotStructures(folderUri);
+		},
+		onDotStructureChanged: (handler) => dotStructureEventEmitter.event(handler),
+		getMedicineWheelDirection: (filePath) => getMedicineWheelDirection(filePath),
 	};
 }
 
@@ -165,6 +215,10 @@ const CHANNEL_NAMES = {
 	lake: 'Mia: Lake \uD83C\uDF0A',
 	narrative: 'Mia: Narrative',
 	server: 'Mia: Server',
+	// allow-any-unicode-next-line
+	pde: 'Mia: PDE \uD83C\uDF05',
+	// allow-any-unicode-next-line
+	stc: 'Mia: STC \uD83D\uDCCA',
 };
 
 function getLog(universe) {
@@ -200,6 +254,7 @@ async function analyzeFileByUri(uri) {
 		getLog('engineer').info(`Analysis: ${result.engineer.summary}`);
 		getLog('ceremony').info(`Analysis: ${result.ceremony.summary}`);
 		getLog('story').info(`Analysis: ${result.story.summary}`);
+		// allow-any-unicode-next-line
 		vscode.window.showInformationMessage(`Analysis complete — significance: ${result.overallSignificance}/5`);
 		return result;
 	} catch (err) {
@@ -210,6 +265,7 @@ async function analyzeFileByUri(uri) {
 }
 
 async function showAgentPanel(_context) {
+	// allow-any-unicode-next-line
 	vscode.window.showInformationMessage('Agent Panel — coming in mia.agent-panel extension');
 }
 
@@ -353,12 +409,50 @@ async function quickAnalysis() {
 }
 
 // allow-any-unicode-next-line
+// --- Dot-Structure Inventory ------------------------------------------------
+
+async function showDotStructuresInventory() {
+	const folders = vscode.workspace.workspaceFolders;
+	if (!folders || folders.length === 0) {
+		vscode.window.showInformationMessage('No workspace folder open.');
+		return;
+	}
+
+	const inventory = await getDotStructures(folders[0].uri);
+	const present = inventory.filter(s => s.exists);
+
+	if (present.length === 0) {
+		vscode.window.showInformationMessage('No dot-structures found in this workspace.');
+		return;
+	}
+
+	// allow-any-unicode-next-line
+	const lines = present.map(s => `${s.emoji} ${s.name} — ${s.fileCount} file(s)`);
+	const channel = getLog('narrative');
+	// allow-any-unicode-next-line
+	channel.info('── Dot-Structure Inventory ──');
+	for (const line of lines) {
+		channel.info(line);
+	}
+	channel.show();
+	vscode.window.showInformationMessage(`Found ${present.length} dot-structure(s): ${present.map(s => s.name).join(', ')}`);
+}
+
+// allow-any-unicode-next-line
 // --- Tree Data Providers -----------------------------------------------------
 
 class UniverseExplorerProvider {
-	constructor() {
+	/**
+	 * @param {import('vscode').EventEmitter<any>} [dotStructureEmitter]
+	 */
+	constructor(dotStructureEmitter) {
 		this._onDidChangeTreeData = new vscode.EventEmitter();
 		this.onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+		// Auto-refresh when dot-structures change
+		if (dotStructureEmitter) {
+			dotStructureEmitter.event(() => this._onDidChangeTreeData.fire());
+		}
 	}
 
 	refresh() {
@@ -369,9 +463,9 @@ class UniverseExplorerProvider {
 		return element;
 	}
 
-	getChildren(element) {
+	async getChildren(element) {
 		if (!element) {
-			return [
+			const roots = [
 				// allow-any-unicode-next-line
 				new UniverseTreeItem('\uD83D\uDD27 Engineer', 'engineer', vscode.TreeItemCollapsibleState.Collapsed),
 				// allow-any-unicode-next-line
@@ -381,11 +475,87 @@ class UniverseExplorerProvider {
 				// allow-any-unicode-next-line
 				new UniverseTreeItem('\uD83C\uDF0A Lake', 'lake', vscode.TreeItemCollapsibleState.Collapsed),
 			];
+
+			// Add dot-structure nodes if workspace has them
+			const folders = vscode.workspace.workspaceFolders;
+			if (folders && folders.length > 0) {
+				try {
+					const inventory = await getDotStructures(folders[0].uri);
+					const present = inventory.filter(s => s.exists);
+					if (present.length > 0) {
+						roots.push(new DotStructureSectionItem());
+						for (const struct of present) {
+							roots.push(new DotStructureTreeItem(struct));
+						}
+					}
+				} catch {
+					// allow-any-unicode-next-line
+					// Graceful degradation — just show universes
+				}
+			}
+
+			return roots;
 		}
-		// Child items would show recent analyses per universe
+
+		// Dot-structure children: list files
+		if (element instanceof DotStructureTreeItem) {
+			return this._getDotStructureChildren(element);
+		}
+
+		// Universe children
 		return [
 			new vscode.TreeItem('No analyses yet', vscode.TreeItemCollapsibleState.None),
 		];
+	}
+
+	/**
+	 * @param {DotStructureTreeItem} element
+	 */
+	async _getDotStructureChildren(element) {
+		const folders = vscode.workspace.workspaceFolders;
+		if (!folders || folders.length === 0) { return []; }
+
+		const folderUri = folders[0].uri;
+		const dirName = element.dotStructureName;
+
+		if (dirName === '.pde') {
+			const decomps = await getPdeDecompositions(folderUri);
+			return decomps.map(d => {
+				const label = d.prompt ? d.prompt.slice(0, 60) : d.name;
+				const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
+				item.description = d.name;
+				item.tooltip = d.prompt || d.relativePath;
+				item.command = { command: 'vscode.open', title: 'Open', arguments: [d.uri] };
+				item.contextValue = 'pdeDecomposition';
+				return item;
+			});
+		}
+
+		if (dirName === '.coaia') {
+			const charts = await getCoaiaCharts(folderUri);
+			return charts.map(c => {
+				const item = new vscode.TreeItem(c.name, vscode.TreeItemCollapsibleState.None);
+				item.description = `${c.entityCount} entities`;
+				item.tooltip = c.relativePath;
+				item.command = { command: 'vscode.open', title: 'Open', arguments: [c.uri] };
+				item.contextValue = 'coaiaChart';
+				return item;
+			});
+		}
+
+		// Generic listing for other dot-structures
+		const { scanDotStructureDir } = require('./dotStructures');
+		const meta = DOT_STRUCTURES[dirName];
+		if (!meta) { return []; }
+
+		const files = await scanDotStructureDir(folderUri, dirName, meta.pattern);
+		return files.map(f => {
+			const item = new vscode.TreeItem(f.name, vscode.TreeItemCollapsibleState.None);
+			item.tooltip = f.relativePath;
+			item.command = { command: 'vscode.open', title: 'Open', arguments: [f.uri] };
+			item.contextValue = 'dotStructureFile';
+			return item;
+		});
 	}
 }
 
@@ -395,6 +565,30 @@ class UniverseTreeItem extends vscode.TreeItem {
 		this.universe = universe;
 		this.contextValue = 'universe';
 		this.tooltip = `${label} Universe`;
+	}
+}
+
+class DotStructureSectionItem extends vscode.TreeItem {
+	constructor() {
+		// allow-any-unicode-next-line
+		super('\u2500\u2500 Dot Structures \u2500\u2500', vscode.TreeItemCollapsibleState.None);
+		this.contextValue = 'dotStructureSection';
+		this.description = '';
+	}
+}
+
+class DotStructureTreeItem extends vscode.TreeItem {
+	/**
+	 * @param {{ name: string, exists: boolean, fileCount: number, description: string, emoji: string, uri: import('vscode').Uri }} struct
+	 */
+	constructor(struct) {
+		super(`${struct.emoji} ${struct.name}`, vscode.TreeItemCollapsibleState.Collapsed);
+		this.dotStructureName = struct.name;
+		this.description = `${struct.fileCount} file(s)`;
+		// allow-any-unicode-next-line
+		this.tooltip = `${struct.description} — ${struct.fileCount} file(s)`;
+		this.contextValue = 'dotStructure';
+		this.resourceUri = struct.uri;
 	}
 }
 

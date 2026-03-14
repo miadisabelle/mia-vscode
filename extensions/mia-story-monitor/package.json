@@ -6,7 +6,7 @@
 	"publisher": "mia",
 	"license": "MIT",
 	"engines": { "vscode": "^1.96.0" },
-	"activationEvents": ["onView:mia.sessionExplorer", "onCommand:mia.showDashboard"],
+	"activationEvents": ["onView:mia.sessionExplorer", "onCommand:mia.showDashboard", "workspaceContains:**/.pde/*.json", "workspaceContains:**/.coaia/**/*.jsonl"],
 	"main": "./src/extension.js",
 	"extensionDependencies": ["mia.three-universe"],
 	"contributes": {

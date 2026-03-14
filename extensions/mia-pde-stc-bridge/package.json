@@ -1,0 +1,79 @@
+{
+	"name": "pde-stc-bridge",
+	"displayName": "Mia PDE to STC Bridge",
+	"description": "Bridge PDE decompositions to Structural Tension Charts within the editor",
+	"version": "0.1.0",
+	"publisher": "mia",
+	"license": "MIT",
+	"engines": { "vscode": "^1.96.0" },
+	"activationEvents": [
+		"onView:mia.pdeExplorer",
+		"onCommand:mia.pdeBridge.preview",
+		"onCommand:mia.pdeBridge.createChart",
+		"workspaceContains:.pde"
+	],
+	"main": "./src/extension.js",
+	"extensionDependencies": ["mia.three-universe", "mia.stc-charts"],
+	"contributes": {
+		"commands": [
+			{
+				"command": "mia.pdeBridge.preview",
+				"title": "Mia: Preview PDE Decomposition",
+				"icon": "$(open-preview)"
+			},
+			{
+				"command": "mia.pdeBridge.createChart",
+				"title": "Mia: Create STC from PDE",
+				"icon": "$(graph)"
+			},
+			{
+				"command": "mia.pdeBridge.refresh",
+				"title": "Mia: Refresh PDE Explorer",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "mia.pdeBridge.openJson",
+				"title": "Mia: Open PDE JSON",
+				"icon": "$(json)"
+			}
+		],
+		"viewsContainers": {
+			"activitybar": []
+		},
+		"views": {
+			"stc-dashboard": [
+				{
+					"id": "mia.pdeExplorer",
+					"name": "PDE Decompositions",
+					"when": "mia.pdeExplorer.hasDecompositions"
+				}
+			]
+		},
+		"menus": {
+			"view/title": [
+				{ "command": "mia.pdeBridge.refresh", "when": "view == mia.pdeExplorer", "group": "navigation" }
+			],
+			"view/item/context": [
+				{ "command": "mia.pdeBridge.preview", "when": "viewItem == pdeDecomposition", "group": "navigation" },
+				{ "command": "mia.pdeBridge.createChart", "when": "viewItem == pdeDecomposition", "group": "navigation" },
+				{ "command": "mia.pdeBridge.openJson", "when": "viewItem == pdeDecomposition" }
+			]
+		},
+		"configuration": {
+			"title": "Mia PDE Bridge",
+			"properties": {
+				"mia.pdeBridge.autoDetect": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically detect .pde/ directories and offer to activate PDE bridge view"
+				},
+				"mia.pdeBridge.defaultDirection": {
+					"type": "string",
+					"default": "east",
+					"enum": ["east", "south", "west", "north"],
+					"description": "Default medicine wheel direction for new STC charts created from PDE"
+				}
+			}
+		}
+	}
+}

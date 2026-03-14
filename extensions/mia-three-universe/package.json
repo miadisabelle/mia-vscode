@@ -102,6 +102,16 @@
 				"command": "mia.quickAnalysis",
 				"title": "Mia: Quick Analysis",
 				"icon": "$(zap)"
+			},
+			{
+				"command": "mia.refreshDotStructures",
+				"title": "Mia: Refresh Dot Structures",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "mia.showDotStructures",
+				"title": "Mia: Show Dot-Structure Inventory",
+				"icon": "$(folder-library)"
 			}
 		],
 		"keybindings": [
@@ -112,7 +122,9 @@
 			{ "command": "mia.switchUniverse", "key": "ctrl+shift+m u", "mac": "cmd+shift+m u" },
 			{ "command": "mia.showDashboard", "key": "ctrl+shift+m d", "mac": "cmd+shift+m d" },
 			{ "command": "mia.decompose", "key": "ctrl+shift+m e", "mac": "cmd+shift+m e" },
-			{ "command": "mia.quickAnalysis", "key": "ctrl+shift+m q", "mac": "cmd+shift+m q" }
+			{ "command": "mia.quickAnalysis", "key": "ctrl+shift+m q", "mac": "cmd+shift+m q" },
+			{ "command": "mia.refreshDotStructures", "key": "ctrl+shift+m r", "mac": "cmd+shift+m r" },
+			{ "command": "mia.showDotStructures", "key": "ctrl+shift+m i", "mac": "cmd+shift+m i" }
 		],
 		"configuration": {
 			"title": "Mia Three Universe",
@@ -164,8 +176,27 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Enable ambient story monitor indicators"
+				},
+				"mia.dotStructures.watchEnabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Watch .pde/, .coaia/, .mino/, .mia-vscode/, .stc/ directories for changes"
+				},
+				"mia.dotStructures.autoRefresh": {
+					"type": "boolean",
+					"default": true,
+					"description": "Auto-refresh Universe Explorer when dot-structure files change"
 				}
 			}
+		},
+		"menus": {
+			"view/title": [
+				{
+					"command": "mia.refreshDotStructures",
+					"when": "view == mia.universeExplorer",
+					"group": "navigation"
+				}
+			]
 		},
 		"walkthroughs": [
 			{
